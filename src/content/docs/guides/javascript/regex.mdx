@@ -7,13 +7,13 @@ import { Code } from '@astrojs/starlight/components';
 import { Badge } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-# Expresiones Regulares <Badge variant="success">Fundamental</Badge>
+# Expresiones Regulares <Badge text="Fundamental" variant="success" />
 
 <Aside type="tip">
   Las expresiones regulares son patrones utilizados para hacer coincidir combinaciones de caracteres en cadenas.
 </Aside>
 
-## Creación de RegExp <Badge variant="note">Básico</Badge>
+## Creación de RegExp <Badge text="Básico" variant="note" />
 <Code code={`// Usando constructor
 const regex1 = new RegExp('patron', 'flags');
 
@@ -40,7 +40,7 @@ const regexTodo = /./s;
 // u - Unicode
 const regexUnicode = /\u{1F600}/u;  // Emoji sonriente`} lang="javascript" />
 
-## Metacaracteres <Badge variant="caution">Importante</Badge>
+## Metacaracteres <Badge text="Importante" variant="caution" />
 
 ### Caracteres básicos
 <Code code={`// . - Cualquier carácter excepto nueva línea
@@ -80,7 +80,7 @@ const regex5 = /\w{2,}/;  // Dos o más caracteres
 // {n,m} - Entre n y m
 const regex6 = /\d{2,4}/;  // Entre 2 y 4 dígitos`} lang="javascript" />
 
-## Métodos de RegExp <Badge variant="caution">Importante</Badge>
+## Métodos de RegExp <Badge text="Importante" variant="caution" />
 
 ### test() y exec()
 <Code code={`const texto = "Mi número es 123-456-789";
@@ -109,7 +109,7 @@ console.log(texto.replace(/roja/g, "azul"));
 // split() - Divide usando regex
 console.log(texto.split(/\s+/));  // Divide por espacios`} lang="javascript" />
 
-## Grupos y referencias <Badge variant="caution">Avanzado</Badge>
+## Grupos y referencias <Badge text="Avanzado" variant="caution" />
 
 ### Grupos de captura
 <Code code={`const regex = /(\w+)\s+(\w+)/;
@@ -135,7 +135,7 @@ console.log(regex.test("hola adios"));  // false
 const regexNombrado = /(?<palabra>\\w+)\\s+\\k<palabra>/;
 console.log(regexNombrado.test("hola hola"));  // true`} lang="javascript" />
 
-## Patrones comunes <Badge variant="note">Referencia</Badge>
+## Patrones comunes <Badge text="Referencia" variant="note" />
 
 ### Validación de formatos
 <Code code={`// Email
@@ -165,7 +165,7 @@ console.log(regexPassword.test('MiContraseña123')); // true
 // Fecha (DD/MM/YYYY)
 const regexFecha = /^(0[1-9]|[12][0-9]|3[01])[- /.](0[1-9]|1[012])[- /.](19|20)\d\d$/;`} lang="javascript" />
 
-## Mejores prácticas <Badge variant="success">Recomendado</Badge>
+## Mejores prácticas <Badge text="Recomendado" variant="success" />
 
 ### Optimización
 <Code code={`// ❌ Malo - Recreando regex en bucle
