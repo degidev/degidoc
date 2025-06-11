@@ -104,25 +104,7 @@ import {
     listarProductos 
 } from './servicios';`} lang="javascript" />
 
-## Módulos circulares <Badge text="Avanzado" variant="warning" />
 
-### Manejo de dependencias circulares
-<Code code={`// a.js
-import { funcionB } from './b.js';
-
-export function funcionA() {
-    return 'A' + funcionB();
-}
-
-// b.js
-import { funcionA } from './a.js';
-
-export function funcionB() {
-    if (condicion) {
-        return funcionA();
-    }
-    return 'B';
-}`} lang="javascript" />
 
 ## Mejores prácticas <Badge text="Recomendado" variant="tip" />
 
