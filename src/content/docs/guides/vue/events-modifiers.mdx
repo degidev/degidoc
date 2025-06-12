@@ -1,0 +1,262 @@
+---
+title: Eventos y Modificadores en Vue 3
+description: Aprende a manejar eventos y sus modificadores usando Composition API
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Eventos Básicos
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const count = ref(0)
+
+const increment = () => count.value++
+const reset = () => count.value = 0
+</script>
+
+<template>
+  <div>
+    <button @click="increment">Incrementar</button>
+    <button @click="reset">Reset</button>
+    <p>Contador: {{ count }}</p>
+  </div>
+</template>
+```
+
+## Modificadores de Eventos
+
+### .stop, .prevent, .self
+```vue
+<template>
+  <div @click="handleOuterClick">
+    Exterior
+    <!-- Detiene la propagación -->
+    <button @click.stop="handleClick">
+      Click con stop
+    </button>
+
+    <!-- Previene comportamiento por defecto -->
+    <form @submit.prevent="handleSubmit">
+      <button type="submit">Enviar</button>
+    </form>
+
+    <!-- Solo si el evento ocurre en este elemento -->
+    <div @click.self="handleSelfClick">
+      Self Click
+    </div>
+  </div>
+</template>
+```
+
+### Modificadores de Teclado
+```vue
+<script setup>
+const handleEnter = () => console.log('Enter presionado')
+const handleEscape = () => console.log('Escape presionado')
+const handleShortcut = () => console.log('Ctrl+S presionado')
+</script>
+
+<template>
+  <input 
+    @keyup.enter="handleEnter"
+    @keyup.esc="handleEscape"
+    @keyup.ctrl.s.prevent="handleShortcut"
+  />
+</template>
+```
+
+## Eventos Personalizados
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const emit = defineEmits(['update', 'submit'])
+
+const value = ref('')
+
+const handleInput = (event) => {
+  value.value = event.target.value
+  emit('update', value.value)
+}
+
+const handleSubmit = () => {
+  emit('submit', { value: value.value })
+}
+</script>
+
+<template>
+  <div>
+    <input 
+      :value="value"
+      @input="handleInput"
+    />
+    <button @click="handleSubmit">
+      Enviar
+    </button>
+  </div>
+</template>
+```
+
+## Ejemplo Práctico: Formulario Modal
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const emit = defineEmits(['save', 'close'])
+
+const isVisible = ref(false)
+const formData = ref({
+  name: '',
+  email: ''
+})
+
+const handleSubmit = (e) => {
+  e.preventDefault()
+  emit('save', { ...formData.value })
+  handleClose()
+}
+
+const handleClose = () => {
+  formData.value = { name: '', email: '' }
+  emit('close')
+}
+
+// Cerrar con Escape
+const handleKeydown = (e) => {
+  if (e.key === 'Escape') handleClose()
+}
+</script>
+
+<template>
+  <div 
+    class="modal-overlay"
+    @click.self="handleClose"
+    @keydown="handleKeydown"
+  >
+    <div class="modal">
+      <form @submit.prevent="handleSubmit">
+        <input
+          v-model="formData.name"
+          @keyup.enter.prevent
+        />
+        <input
+          v-model="formData.email"
+          type="email"
+          @keyup.enter.prevent
+        />
+        <div class="actions">
+          <button type="button" @click.stop="handleClose">
+            Cancelar
+          </button>
+          <button type="submit">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</template>
+```
+
+## Eventos del Mouse
+
+```vue
+<script setup>
+const handleHover = () => console.log('Hover')
+const handleClick = (event) => {
+  console.log('Posición:', event.clientX, event.clientY)
+}
+</script>
+
+<template>
+  <div>
+    <!-- Solo dispara una vez -->
+    <button @click.once="handleClick">
+      Click Una Vez
+    </button>
+
+    <!-- Eventos hover -->
+    <div
+      @mouseenter="handleHover"
+      @mouseleave="handleHover"
+    >
+      Hover Me
+    </div>
+
+    <!-- Modificadores de mouse -->
+    <button @click.right.prevent="handleClick">
+      Click Derecho
+    </button>
+  </div>
+</template>
+```
+
+## Eventos Touch
+
+```vue
+<script setup>
+const handleSwipe = (direction) => {
+  console.log('Swipe:', direction)
+}
+</script>
+
+<template>
+  <div
+    @touchstart.passive="handleTouchStart"
+    @touchmove.passive="handleTouchMove"
+    @touchend.passive="handleTouchEnd"
+  >
+    Área Touch
+  </div>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa modificadores para prevenir comportamientos no deseados
+- Implementa limpieza de eventos cuando sea necesario
+- Mantén los manejadores de eventos simples
+- Usa eventos personalizados para comunicación entre componentes
+- Considera la accesibilidad al manejar eventos
+</Aside>
+
+## Modificadores Útiles
+
+<Tabs>
+  <TabItem label="Formularios">
+    ```vue
+    <template>
+      <!-- Prevenir múltiples envíos -->
+      <form @submit.prevent.once="handleSubmit">
+        <!-- Actualizar al perder foco -->
+        <input @change.lazy="updateValue">
+        <!-- Convertir a número -->
+        <input @input.number="handleNumber">
+        <!-- Recortar espacios -->
+        <input @input.trim="handleInput">
+      </form>
+    </template>
+    ```
+  </TabItem>
+  <TabItem label="Teclado">
+    ```vue
+    <template>
+      <input
+        <!-- Combinaciones de teclas -->
+        @keyup.alt.s="save"
+        @keyup.ctrl.enter="submit"
+        @keyup.meta.delete="remove"
+      >
+    </template>
+    ```
+  </TabItem>
+</Tabs>

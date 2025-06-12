@@ -1,0 +1,371 @@
+---
+title: Pinia en Vue 3
+description: Aprende a usar Pinia para gestión de estado en Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Configuración Básica
+
+```ts
+// stores/counter.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const useCounterStore = defineStore('counter', () => {
+  // Estado
+  const count = ref(0)
+  
+  // Getters
+  const doubleCount = computed(() => count.value * 2)
+  
+  // Acciones
+  const increment = () => count.value++
+  const decrement = () => count.value--
+  
+  return {
+    count,
+    doubleCount,
+    increment,
+    decrement
+  }
+})
+```
+
+## Store con TypeScript
+
+```ts
+// types/user.ts
+export interface User {
+  id: number
+  name: string
+  email: string
+}
+
+// stores/user.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { User } from '@/types/user'
+
+export const useUserStore = defineStore('user', () => {
+  const user = ref<User | null>(null)
+  const loading = ref(false)
+  const error = ref<Error | null>(null)
+
+  const isAuthenticated = computed(() => !!user.value)
+  const userName = computed(() => user.value?.name ?? 'Guest')
+
+  const fetchUser = async (id: number) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const response = await fetch(`/api/users/${id}`)
+      if (!response.ok) throw new Error('Failed to fetch user')
+      user.value = await response.json()
+    } catch (e) {
+      error.value = e as Error
+      user.value = null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const logout = () => {
+    user.value = null
+  }
+
+  return {
+    // Estado
+    user,
+    loading,
+    error,
+    // Getters
+    isAuthenticated,
+    userName,
+    // Acciones
+    fetchUser,
+    logout
+  }
+})
+```
+
+## Stores Modulares
+
+```ts
+// stores/cart.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { useProductStore } from './product'
+
+interface CartItem {
+  productId: number
+  quantity: number
+}
+
+export const useCartStore = defineStore('cart', () => {
+  const items = ref<CartItem[]>([])
+  const productStore = useProductStore()
+
+  const total = computed(() => {
+    return items.value.reduce((sum, item) => {
+      const product = productStore.getProduct(item.productId)
+      return sum + (product?.price ?? 0) * item.quantity
+    }, 0)
+  })
+
+  const itemCount = computed(() => {
+    return items.value.reduce((sum, item) => sum + item.quantity, 0)
+  })
+
+  const addItem = (productId: number, quantity = 1) => {
+    const existingItem = items.value.find(item => item.productId === productId)
+    
+    if (existingItem) {
+      existingItem.quantity += quantity
+    } else {
+      items.value.push({ productId, quantity })
+    }
+  }
+
+  const removeItem = (productId: number) => {
+    const index = items.value.findIndex(item => item.productId === productId)
+    if (index > -1) {
+      items.value.splice(index, 1)
+    }
+  }
+
+  const clearCart = () => {
+    items.value = []
+  }
+
+  return {
+    items,
+    total,
+    itemCount,
+    addItem,
+    removeItem,
+    clearCart
+  }
+})
+```
+
+## Persistencia de Estado
+
+```ts
+// plugins/persistedState.ts
+import { watch } from 'vue'
+import type { PiniaPluginContext } from 'pinia'
+
+interface PersistOptions {
+  key?: string
+  paths?: string[]
+}
+
+export function createPersistedState(options: PersistOptions = {}) {
+  return ({ store }: PiniaPluginContext) => {
+    const key = options.key ?? store.$id
+
+    // Restaurar estado
+    const savedState = localStorage.getItem(key)
+    if (savedState) {
+      store.$patch(JSON.parse(savedState))
+    }
+
+    // Observar cambios
+    watch(
+      () => store.$state,
+      (state) => {
+        localStorage.setItem(key, JSON.stringify(state))
+      },
+      { deep: true }
+    )
+  }
+}
+
+// main.ts
+import { createPinia } from 'pinia'
+import { createPersistedState } from './plugins/persistedState'
+
+const pinia = createPinia()
+pinia.use(createPersistedState())
+```
+
+## Composables con Pinia
+
+```ts
+// composables/useAuth.ts
+import { storeToRefs } from 'pinia'
+import { useUserStore } from '@/stores/user'
+import { useRouter } from 'vue-router'
+
+export function useAuth() {
+  const userStore = useUserStore()
+  const router = useRouter()
+  
+  // Desestructurar store con storeToRefs para mantener reactividad
+  const { user, loading, error } = storeToRefs(userStore)
+  const { fetchUser, logout } = userStore
+
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      })
+      
+      if (!response.ok) throw new Error('Login failed')
+      
+      const { userId } = await response.json()
+      await fetchUser(userId)
+      
+      router.push('/dashboard')
+    } catch (e) {
+      console.error('Login error:', e)
+      throw e
+    }
+  }
+
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
+  }
+
+  return {
+    user,
+    loading,
+    error,
+    login,
+    logout: handleLogout
+  }
+}
+
+// Uso en componente
+<script setup>
+import { useAuth } from '@/composables/useAuth'
+
+const { user, loading, login } = useAuth()
+
+const handleSubmit = async (credentials) => {
+  try {
+    await login(credentials.email, credentials.password)
+  } catch (error) {
+    console.error('Login failed:', error)
+  }
+}
+</script>
+```
+
+## Acciones Asíncronas
+
+```ts
+// stores/product.ts
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+
+interface Product {
+  id: number
+  name: string
+  price: number
+}
+
+export const useProductStore = defineStore('product', () => {
+  const products = ref<Product[]>([])
+  const loading = ref(false)
+  const error = ref<Error | null>(null)
+
+  const fetchProducts = async () => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const response = await fetch('/api/products')
+      if (!response.ok) throw new Error('Failed to fetch products')
+      products.value = await response.json()
+    } catch (e) {
+      error.value = e as Error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const getProduct = (id: number) => {
+    return products.value.find(p => p.id === id)
+  }
+
+  return {
+    products,
+    loading,
+    error,
+    fetchProducts,
+    getProduct
+  }
+})
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa composables para lógica de negocio
+- Mantén los stores pequeños y enfocados
+- Implementa TypeScript para mejor tipado
+- Usa storeToRefs para desestructurar
+- Maneja errores adecuadamente
+- Considera la persistencia cuando sea necesario
+</Aside>
+
+## Suscripciones y Plugins
+
+```ts
+// plugins/logger.ts
+import type { PiniaPluginContext } from 'pinia'
+
+export function piniaLogger({ store }: PiniaPluginContext) {
+  store.$subscribe((mutation, state) => {
+    console.log('Mutation:', {
+      store: mutation.storeId,
+      type: mutation.type,
+      payload: mutation.payload,
+      state
+    })
+  })
+}
+
+// main.ts
+import { createPinia } from 'pinia'
+import { piniaLogger } from './plugins/logger'
+
+const pinia = createPinia()
+pinia.use(piniaLogger)
+```
+
+## Testing con Pinia
+
+```ts
+// tests/counter.spec.ts
+import { setActivePinia, createPinia } from 'pinia'
+import { useCounterStore } from '@/stores/counter'
+import { beforeEach, describe, it, expect } from 'vitest'
+
+describe('Counter Store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('increments counter', () => {
+    const store = useCounterStore()
+    expect(store.count).toBe(0)
+    store.increment()
+    expect(store.count).toBe(1)
+  })
+
+  it('computes double count', () => {
+    const store = useCounterStore()
+    store.count = 2
+    expect(store.doubleCount).toBe(4)
+  })
+})
+```

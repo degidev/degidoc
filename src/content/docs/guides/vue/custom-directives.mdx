@@ -1,0 +1,301 @@
+---
+title: Directivas Personalizadas en Vue 3
+description: Aprende a crear y usar directivas personalizadas en Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Creación de Directivas
+
+```ts
+// directives/vFocus.ts
+import type { Directive } from 'vue'
+
+export const vFocus: Directive = {
+  mounted: (el) => {
+    el.focus()
+  }
+}
+
+// directives/vClickOutside.ts
+export const vClickOutside: Directive = {
+  mounted: (el, binding) => {
+    el._clickOutside = (event: Event) => {
+      if (!(el === event.target || el.contains(event.target as Node))) {
+        binding.value(event)
+      }
+    }
+    document.addEventListener('click', el._clickOutside)
+  },
+  unmounted: (el) => {
+    document.removeEventListener('click', el._clickOutside)
+  }
+}
+```
+
+## Uso de Directivas
+
+```vue
+<script setup lang="ts">
+import { vFocus } from './directives/vFocus'
+import { vClickOutside } from './directives/vClickOutside'
+import { ref } from 'vue'
+
+const isOpen = ref(false)
+
+const close = () => {
+  isOpen.value = false
+}
+</script>
+
+<template>
+  <div>
+    <input v-focus type="text" placeholder="Autofocus" />
+    
+    <div
+      v-show="isOpen"
+      v-click-outside="close"
+      class="dropdown"
+    >
+      Contenido del dropdown
+    </div>
+  </div>
+</template>
+```
+
+## Directivas con Argumentos y Modificadores
+
+```ts
+// directives/vTooltip.ts
+import type { Directive, DirectiveBinding } from 'vue'
+
+interface TooltipOptions {
+  text: string
+  position?: 'top' | 'right' | 'bottom' | 'left'
+}
+
+export const vTooltip: Directive = {
+  mounted: (el: HTMLElement, binding: DirectiveBinding<TooltipOptions>) => {
+    const position = binding.arg || 'top'
+    const { text } = binding.value
+    const tooltip = document.createElement('div')
+    
+    tooltip.textContent = text
+    tooltip.className = `tooltip tooltip-${position}`
+    
+    if (binding.modifiers.light) {
+      tooltip.classList.add('tooltip-light')
+    }
+    
+    el.appendChild(tooltip)
+    el._showTooltip = () => tooltip.classList.add('visible')
+    el._hideTooltip = () => tooltip.classList.remove('visible')
+    
+    el.addEventListener('mouseenter', el._showTooltip)
+    el.addEventListener('mouseleave', el._hideTooltip)
+  },
+  
+  updated: (el: HTMLElement, binding: DirectiveBinding<TooltipOptions>) => {
+    const tooltip = el.querySelector('.tooltip')
+    if (tooltip) {
+      tooltip.textContent = binding.value.text
+    }
+  },
+  
+  unmounted: (el: HTMLElement) => {
+    el.removeEventListener('mouseenter', el._showTooltip)
+    el.removeEventListener('mouseleave', el._hideTooltip)
+  }
+}
+```
+
+## Directivas de Intersección
+
+```ts
+// directives/vIntersection.ts
+import type { Directive } from 'vue'
+
+interface IntersectionOptions {
+  threshold?: number
+  root?: Element | null
+  rootMargin?: string
+  once?: boolean
+}
+
+export const vIntersection: Directive<HTMLElement, (entry: IntersectionObserverEntry) => void> = {
+  mounted: (el, binding) => {
+    const options: IntersectionOptions = binding.arg || {}
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry.isIntersecting) {
+          binding.value(entry)
+          if (options.once) {
+            observer.unobserve(el)
+          }
+        }
+      },
+      {
+        threshold: options.threshold || 0,
+        root: options.root || null,
+        rootMargin: options.rootMargin || '0px'
+      }
+    )
+    
+    el._observer = observer
+    observer.observe(el)
+  },
+  
+  unmounted: (el) => {
+    if (el._observer) {
+      el._observer.unobserve(el)
+    }
+  }
+}
+```
+
+## Ejemplos Prácticos
+
+### Directiva de Lazy Loading
+
+```ts
+// directives/vLazyLoad.ts
+export const vLazyLoad: Directive<HTMLImageElement> = {
+  mounted: (el) => {
+    const loadImage = () => {
+      if (el.dataset.src) {
+        el.src = el.dataset.src
+      }
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        loadImage()
+        observer.unobserve(el)
+      }
+    })
+
+    observer.observe(el)
+  }
+}
+
+// Uso
+<template>
+  <img
+    v-lazy-load
+    data-src="https://example.com/image.jpg"
+    alt="Lazy loaded image"
+  />
+</template>
+```
+
+### Directiva de Resize
+
+```ts
+// directives/vResize.ts
+export const vResize: Directive = {
+  mounted: (el, binding) => {
+    const observer = new ResizeObserver((entries) => {
+      binding.value(entries[0])
+    })
+    
+    el._resizeObserver = observer
+    observer.observe(el)
+  },
+  
+  unmounted: (el) => {
+    if (el._resizeObserver) {
+      el._resizeObserver.unobserve(el)
+    }
+  }
+}
+
+// Uso
+<template>
+  <div
+    v-resize="handleResize"
+    class="resizable-container"
+  >
+    Contenido redimensionable
+  </div>
+</template>
+```
+
+### Directiva de Longpress
+
+```ts
+// directives/vLongpress.ts
+export const vLongpress: Directive = {
+  mounted: (el, binding) => {
+    let pressTimer: number | null = null
+    
+    const start = (e: Event) => {
+      if (e.type === 'click') return
+      
+      pressTimer = window.setTimeout(() => {
+        binding.value(e)
+      }, binding.arg || 1000)
+    }
+    
+    const cancel = () => {
+      if (pressTimer) {
+        clearTimeout(pressTimer)
+        pressTimer = null
+      }
+    }
+    
+    el.addEventListener('mousedown', start)
+    el.addEventListener('touchstart', start)
+    el.addEventListener('click', cancel)
+    el.addEventListener('mouseout', cancel)
+    el.addEventListener('touchend', cancel)
+    el.addEventListener('touchcancel', cancel)
+  }
+}
+
+// Uso
+<template>
+  <button v-longpress:500="handleLongPress">
+    Mantén presionado
+  </button>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Limpia los event listeners en `unmounted`
+- Usa TypeScript para mejor tipo de datos
+- Mantén las directivas simples y enfocadas
+- Documenta el uso y los parámetros
+- Considera la reusabilidad
+- Maneja casos de error
+</Aside>
+
+## Hooks del Ciclo de Vida
+
+```ts
+const myDirective: Directive = {
+  // Antes de montar
+  beforeMount(el, binding, vnode, prevVnode) {},
+  
+  // Al montar
+  mounted(el, binding, vnode, prevVnode) {},
+  
+  // Antes de actualizar
+  beforeUpdate(el, binding, vnode, prevVnode) {},
+  
+  // Al actualizar
+  updated(el, binding, vnode, prevVnode) {},
+  
+  // Antes de desmontar
+  beforeUnmount(el, binding, vnode, prevVnode) {},
+  
+  // Al desmontar
+  unmounted(el, binding, vnode, prevVnode) {}
+}
+```

@@ -1,0 +1,310 @@
+---
+title: Formularios en Vue 3
+description: Aprende a trabajar con formularios usando Composition API y v-model
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## v-model con ref
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const username = ref('')
+const email = ref('')
+const password = ref('')
+const remember = ref(false)
+const selectedOption = ref('')
+const multipleSelect = ref([])
+
+const handleSubmit = () => {
+  console.log({
+    username: username.value,
+    email: email.value,
+    password: password.value,
+    remember: remember.value,
+    selectedOption: selectedOption.value,
+    multipleSelect: multipleSelect.value
+  })
+}
+</script>
+
+<template>
+  <form @submit.prevent="handleSubmit">
+    <!-- Input de texto -->
+    <input v-model="username" type="text" />
+
+    <!-- Email -->
+    <input v-model="email" type="email" />
+
+    <!-- Contraseña -->
+    <input v-model="password" type="password" />
+
+    <!-- Checkbox -->
+    <input v-model="remember" type="checkbox" />
+
+    <!-- Select simple -->
+    <select v-model="selectedOption">
+      <option value="">Seleccione...</option>
+      <option value="a">Opción A</option>
+      <option value="b">Opción B</option>
+    </select>
+
+    <!-- Select múltiple -->
+    <select v-model="multipleSelect" multiple>
+      <option value="1">Uno</option>
+      <option value="2">Dos</option>
+      <option value="3">Tres</option>
+    </select>
+
+    <button type="submit">Enviar</button>
+  </form>
+</template>
+```
+
+## Formulario con Validación
+
+```vue
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+
+interface FormData {
+  username: string
+  email: string
+  password: string
+  confirmPassword: string
+}
+
+interface FormErrors {
+  username?: string
+  email?: string
+  password?: string
+  confirmPassword?: string
+}
+
+const formData = ref<FormData>({
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: ''
+})
+
+const errors = ref<FormErrors>({})
+const isSubmitting = ref(false)
+
+const validateEmail = (email: string): boolean => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+const validateForm = (): boolean => {
+  errors.value = {}
+  let isValid = true
+
+  // Validación de username
+  if (formData.value.username.length < 3) {
+    errors.value.username = 'El nombre debe tener al menos 3 caracteres'
+    isValid = false
+  }
+
+  // Validación de email
+  if (!validateEmail(formData.value.email)) {
+    errors.value.email = 'Email inválido'
+    isValid = false
+  }
+
+  // Validación de password
+  if (formData.value.password.length < 8) {
+    errors.value.password = 'La contraseña debe tener al menos 8 caracteres'
+    isValid = false
+  }
+
+  // Validación de confirmación
+  if (formData.value.password !== formData.value.confirmPassword) {
+    errors.value.confirmPassword = 'Las contraseñas no coinciden'
+    isValid = false
+  }
+
+  return isValid
+}
+
+const isFormValid = computed(() => {
+  return Object.keys(errors.value).length === 0 &&
+    formData.value.username &&
+    formData.value.email &&
+    formData.value.password &&
+    formData.value.confirmPassword
+})
+
+const handleSubmit = async () => {
+  if (!validateForm()) return
+
+  try {
+    isSubmitting.value = true
+    // Simular envío
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    console.log('Formulario enviado:', formData.value)
+    
+    // Resetear formulario
+    formData.value = {
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    }
+  } catch (error) {
+    console.error('Error:', error)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+</script>
+
+<template>
+  <form @submit.prevent="handleSubmit" class="form">
+    <div class="form-group">
+      <label>Usuario</label>
+      <input
+        v-model="formData.username"
+        type="text"
+        :class="{ error: errors.username }"
+      />
+      <span v-if="errors.username" class="error-text">
+        {{ errors.username }}
+      </span>
+    </div>
+
+    <div class="form-group">
+      <label>Email</label>
+      <input
+        v-model="formData.email"
+        type="email"
+        :class="{ error: errors.email }"
+      />
+      <span v-if="errors.email" class="error-text">
+        {{ errors.email }}
+      </span>
+    </div>
+
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input
+        v-model="formData.password"
+        type="password"
+        :class="{ error: errors.password }"
+      />
+      <span v-if="errors.password" class="error-text">
+        {{ errors.password }}
+      </span>
+    </div>
+
+    <div class="form-group">
+      <label>Confirmar Contraseña</label>
+      <input
+        v-model="formData.confirmPassword"
+        type="password"
+        :class="{ error: errors.confirmPassword }"
+      />
+      <span v-if="errors.confirmPassword" class="error-text">
+        {{ errors.confirmPassword }}
+      </span>
+    </div>
+
+    <button
+      type="submit"
+      :disabled="!isFormValid || isSubmitting"
+    >
+      {{ isSubmitting ? 'Enviando...' : 'Enviar' }}
+    </button>
+  </form>
+</template>
+```
+
+## v-model Personalizado
+
+```vue
+<script setup lang="ts">
+interface Props {
+  modelValue: string
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string): void
+}>()
+
+const updateValue = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  emit('update:modelValue', target.value)
+}
+</script>
+
+<template>
+  <input
+    :value="modelValue"
+    @input="updateValue"
+    class="custom-input"
+  />
+</template>
+```
+
+## Formulario con Composables
+
+```vue
+<script setup>
+import { useForm } from './useForm'
+
+const { 
+  formData,
+  errors,
+  isSubmitting,
+  isValid,
+  validateField,
+  handleSubmit
+} = useForm({
+  initialValues: {
+    username: '',
+    email: '',
+    password: ''
+  },
+  validationSchema: {
+    username: (value) => value.length >= 3 || 'Mínimo 3 caracteres',
+    email: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) || 'Email inválido',
+    password: (value) => value.length >= 8 || 'Mínimo 8 caracteres'
+  }
+})
+</script>
+
+<template>
+  <form @submit.prevent="handleSubmit">
+    <div v-for="field in ['username', 'email', 'password']" :key="field">
+      <input
+        v-model="formData[field]"
+        :type="field === 'password' ? 'password' : 'text'"
+        @blur="validateField(field)"
+      />
+      <span v-if="errors[field]" class="error">
+        {{ errors[field] }}
+      </span>
+    </div>
+
+    <button type="submit" :disabled="!isValid || isSubmitting">
+      {{ isSubmitting ? 'Enviando...' : 'Enviar' }}
+    </button>
+  </form>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa `v-model` para vinculación bidireccional
+- Implementa validación en tiempo real
+- Maneja estados de carga y errores
+- Usa TypeScript para mejor tipo de datos
+- Considera crear composables para lógica reutilizable
+- Implementa feedback visual para el usuario
+</Aside>

@@ -1,0 +1,437 @@
+---
+title: Integración de APIs en Vue 3
+description: Aprende a integrar APIs REST y GraphQL en aplicaciones Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Cliente HTTP con Axios
+
+```ts
+// services/api.ts
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+// Interceptores
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Manejar token expirado
+      localStorage.removeItem('token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default api
+```
+
+## Composable para Peticiones REST
+
+```ts
+// composables/useApi.ts
+import { ref } from 'vue'
+import api from '@/services/api'
+
+export function useApi<T>() {
+  const data = ref<T | null>(null)
+  const error = ref<Error | null>(null)
+  const loading = ref(false)
+
+  const execute = async (
+    method: 'get' | 'post' | 'put' | 'delete',
+    url: string,
+    payload?: unknown
+  ) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await api[method](url, payload)
+      data.value = response.data
+      return response.data
+    } catch (e) {
+      error.value = e as Error
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const get = (url: string) => execute('get', url)
+  const post = (url: string, data: unknown) => execute('post', url, data)
+  const put = (url: string, data: unknown) => execute('put', url, data)
+  const del = (url: string) => execute('delete', url)
+
+  return {
+    data,
+    error,
+    loading,
+    get,
+    post,
+    put,
+    delete: del
+  }
+}
+
+// Uso en componente
+<script setup lang="ts">
+import { useApi } from '@/composables/useApi'
+
+interface User {
+  id: number
+  name: string
+  email: string
+}
+
+const { data: users, loading, error, get } = useApi<User[]>()
+
+const fetchUsers = async () => {
+  try {
+    await get('/users')
+  } catch (e) {
+    console.error('Error fetching users:', e)
+  }
+}
+</script>
+```
+
+## Cliente GraphQL con Apollo
+
+```ts
+// services/apollo.ts
+import { 
+  ApolloClient, 
+  createHttpLink, 
+  InMemoryCache 
+} from '@apollo/client/core'
+import { DefaultApolloClient } from '@vue/apollo-composable'
+import { provide } from 'vue'
+
+const httpLink = createHttpLink({
+  uri: import.meta.env.VITE_GRAPHQL_URL
+})
+
+const cache = new InMemoryCache()
+
+export const apolloClient = new ApolloClient({
+  link: httpLink,
+  cache
+})
+
+// Proveedor para componentes
+export function provideApollo() {
+  provide(DefaultApolloClient, apolloClient)
+}
+```
+
+## Composable para GraphQL
+
+```ts
+// composables/useGraphQL.ts
+import { useQuery, useMutation } from '@vue/apollo-composable'
+import type { DocumentNode } from 'graphql'
+import { computed } from 'vue'
+
+export function useGraphQL<TData = any, TVariables = any>(
+  query: DocumentNode,
+  variables?: TVariables
+) {
+  const { result, loading, error } = useQuery<TData>(
+    query,
+    variables
+  )
+
+  const data = computed(() => result.value)
+
+  return {
+    data,
+    loading,
+    error
+  }
+}
+
+// Ejemplo de uso
+import { gql } from '@apollo/client/core'
+
+const GET_USERS = gql`
+  query GetUsers {
+    users {
+      id
+      name
+      email
+    }
+  }
+`
+
+const { data: users, loading } = useGraphQL(GET_USERS)
+```
+
+## Manejo de Caché y Estado
+
+```ts
+// stores/api.ts
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import api from '@/services/api'
+
+interface CacheItem<T> {
+  data: T
+  timestamp: number
+}
+
+export const useApiStore = defineStore('api', () => {
+  const cache = ref<Record<string, CacheItem<any>>>({})
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+
+  const isCacheValid = (key: string) => {
+    const item = cache.value[key]
+    if (!item) return false
+    
+    const now = Date.now()
+    return now - item.timestamp < CACHE_DURATION
+  }
+
+  const getCached = async <T>(
+    key: string,
+    fetcher: () => Promise<T>
+  ): Promise<T> => {
+    if (isCacheValid(key)) {
+      return cache.value[key].data
+    }
+
+    const data = await fetcher()
+    cache.value[key] = {
+      data,
+      timestamp: Date.now()
+    }
+    
+    return data
+  }
+
+  const invalidateCache = (key?: string) => {
+    if (key) {
+      delete cache.value[key]
+    } else {
+      cache.value = {}
+    }
+  }
+
+  return {
+    getCached,
+    invalidateCache
+  }
+})
+```
+
+## Optimización de Rendimiento
+
+```ts
+// composables/useInfiniteScroll.ts
+import { ref, onMounted, onUnmounted } from 'vue'
+
+export function useInfiniteScroll<T>(
+  fetchData: (page: number) => Promise<T[]>
+) {
+  const items = ref<T[]>([])
+  const loading = ref(false)
+  const error = ref<Error | null>(null)
+  const page = ref(1)
+  const hasMore = ref(true)
+
+  const loadMore = async () => {
+    if (loading.value || !hasMore.value) return
+
+    loading.value = true
+    error.value = null
+
+    try {
+      const newItems = await fetchData(page.value)
+      items.value.push(...newItems)
+      hasMore.value = newItems.length > 0
+      page.value++
+    } catch (e) {
+      error.value = e as Error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) {
+        loadMore()
+      }
+    },
+    { threshold: 0.5 }
+  )
+
+  onMounted(() => {
+    const target = document.querySelector('#infinite-scroll-trigger')
+    if (target) {
+      observer.observe(target)
+    }
+  })
+
+  onUnmounted(() => {
+    observer.disconnect()
+  })
+
+  return {
+    items,
+    loading,
+    error,
+    hasMore
+  }
+}
+
+// Uso en componente
+<script setup>
+import { useInfiniteScroll } from '@/composables/useInfiniteScroll'
+import api from '@/services/api'
+
+const fetchPosts = (page: number) => 
+  api.get(`/posts?page=${page}`).then(res => res.data)
+
+const { items: posts, loading, hasMore } = useInfiniteScroll(fetchPosts)
+</script>
+
+<template>
+  <div>
+    <div v-for="post in posts" :key="post.id">
+      {{ post.title }}
+    </div>
+    
+    <div 
+      v-if="hasMore"
+      id="infinite-scroll-trigger"
+      class="h-10"
+    >
+      <span v-if="loading">Cargando...</span>
+    </div>
+  </div>
+</template>
+```
+
+## Manejo de Errores
+
+```ts
+// composables/useErrorHandler.ts
+import { ref } from 'vue'
+
+interface ApiError {
+  message: string
+  code?: string
+  status?: number
+}
+
+export function useErrorHandler() {
+  const error = ref<ApiError | null>(null)
+
+  const handleError = (e: unknown) => {
+    if (axios.isAxiosError(e)) {
+      error.value = {
+        message: e.response?.data?.message || 'Error de red',
+        status: e.response?.status,
+        code: e.code
+      }
+    } else if (e instanceof Error) {
+      error.value = {
+        message: e.message
+      }
+    } else {
+      error.value = {
+        message: 'Error desconocido'
+      }
+    }
+  }
+
+  const clearError = () => {
+    error.value = null
+  }
+
+  return {
+    error,
+    handleError,
+    clearError
+  }
+}
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Centraliza la configuración de API
+- Implementa manejo de errores global
+- Usa caché cuando sea apropiado
+- Implementa retry en fallos de red
+- Maneja tokens y autenticación
+- Optimiza el rendimiento con técnicas como infinite scroll
+</Aside>
+
+## Testing de Integraciones
+
+```ts
+// tests/api.spec.ts
+import { describe, it, expect, vi } from 'vitest'
+import { useApi } from '@/composables/useApi'
+import api from '@/services/api'
+
+vi.mock('@/services/api')
+
+describe('useApi', () => {
+  it('maneja peticiones exitosas', async () => {
+    const mockData = { id: 1, name: 'Test' }
+    vi.mocked(api.get).mockResolvedValue({ data: mockData })
+
+    const { data, loading, error, get } = useApi()
+    
+    expect(loading.value).toBe(false)
+    expect(error.value).toBeNull()
+    
+    await get('/test')
+    
+    expect(data.value).toEqual(mockData)
+    expect(loading.value).toBe(false)
+    expect(error.value).toBeNull()
+  })
+
+  it('maneja errores', async () => {
+    const mockError = new Error('API Error')
+    vi.mocked(api.get).mockRejectedValue(mockError)
+
+    const { data, loading, error, get } = useApi()
+    
+    try {
+      await get('/test')
+    } catch (e) {
+      expect(error.value).toEqual(mockError)
+      expect(loading.value).toBe(false)
+      expect(data.value).toBeNull()
+    }
+  })
+})
+```

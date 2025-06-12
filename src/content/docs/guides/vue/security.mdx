@@ -1,0 +1,339 @@
+---
+title: Seguridad en Vue 3
+description: Aprende las mejores prácticas de seguridad en Vue 3 con la Composition API
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+La seguridad es fundamental en cualquier aplicación web moderna. Vue 3 proporciona varias características y mejores prácticas para mantener nuestras aplicaciones seguras.
+
+## XSS Prevention
+
+La prevención de ataques XSS (Cross-Site Scripting) es crucial en aplicaciones Vue. Aunque Vue 3 escapa automáticamente el contenido renderizado, debemos tener cuidado especial cuando usamos `v-html` o cuando manejamos contenido dinámico del usuario.
+
+### v-html Seguro
+
+```vue
+<script setup lang="ts">
+import DOMPurify from 'dompurify'
+import { ref, computed } from 'vue'
+
+const rawHtml = ref('<p>Contenido del usuario</p>')
+
+const sanitizedHtml = computed(() => 
+  DOMPurify.sanitize(rawHtml.value)
+)
+</script>
+
+<template>
+  <!-- Evitar -->
+  <div v-html="rawHtml"></div>
+  
+  <!-- Usar -->
+  <div v-html="sanitizedHtml"></div>
+</template>
+```
+
+### Escape de Contenido
+
+```vue
+<script setup lang="ts">
+import { escapeHtml } from '@/utils/security'
+
+const userInput = ref('<script>alert("xss")</script>')
+const safeContent = computed(() => escapeHtml(userInput.value))
+</script>
+
+<template>
+  <div>{{ safeContent }}</div>
+</template>
+```
+
+## CSRF Protection
+
+La protección contra ataques CSRF (Cross-Site Request Forgery) es esencial cuando trabajamos con APIs. Vue 3 no proporciona protección CSRF por defecto, pero podemos implementarla fácilmente usando interceptores de axios y tokens.
+
+```ts
+// utils/axios.ts
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+  headers: {
+    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+  }
+})
+
+// Interceptor para tokens
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('csrf-token')
+  if (token) {
+    config.headers['X-CSRF-TOKEN'] = token
+  }
+  return config
+})
+```
+
+## Manejo Seguro de Datos
+
+El manejo seguro de datos es fundamental en cualquier aplicación. Con Vue 3 y la Composition API, podemos implementar validación y sanitización de datos de forma modular y reutilizable.
+
+### Validación de Entrada
+
+```ts
+import { z } from 'zod'
+import { ref, computed } from 'vue'
+
+const userSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8)
+})
+
+const formData = ref({
+  email: '',
+  password: ''
+})
+
+const validateForm = () => {
+  try {
+    userSchema.parse(formData.value)
+    return true
+  } catch (error) {
+    console.error('Validation error:', error)
+    return false
+  }
+}
+```
+
+### Sanitización de Datos
+
+```ts
+import { computed } from 'vue'
+import sanitizeHtml from 'sanitize-html'
+
+const sanitizeUserInput = (input: string) => {
+  return sanitizeHtml(input, {
+    allowedTags: ['b', 'i', 'em', 'strong'],
+    allowedAttributes: {}
+  })
+}
+
+const userComment = ref('<p>Comentario con <script>código</script></p>')
+const safeComment = computed(() => 
+  sanitizeUserInput(userComment.value)
+)
+```
+
+## Autenticación Segura
+
+La autenticación es uno de los aspectos más críticos de la seguridad. Con la Composition API, podemos crear un sistema de autenticación robusto y reutilizable que maneja tokens, sesiones y estado de usuario de forma segura.
+
+```ts
+// composables/useAuth.ts
+import { ref, provide } from 'vue'
+import { useRouter } from 'vue-router'
+
+export const useAuth = () => {
+  const user = ref(null)
+  const token = ref(null)
+  const router = useRouter()
+
+  const login = async (credentials) => {
+    try {
+      const response = await api.post('/auth/login', credentials)
+      token.value = response.data.token
+      
+      // Almacenar token de forma segura
+      sessionStorage.setItem('auth-token', token.value)
+      
+      // Configurar interceptor
+      api.defaults.headers.common['Authorization'] = 
+        `Bearer ${token.value}`
+        
+      await fetchUser()
+    } catch (error) {
+      console.error('Auth error:', error)
+      throw error
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout')
+      token.value = null
+      user.value = null
+      sessionStorage.removeItem('auth-token')
+      router.push('/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+  }
+
+  // Proveer contexto de autenticación
+  provide('auth', {
+    user,
+    login,
+    logout
+  })
+
+  return {
+    user,
+    login,
+    logout
+  }
+}
+```
+
+## Protección de Rutas
+
+La protección de rutas es esencial para controlar el acceso a diferentes partes de nuestra aplicación. Vue Router junto con la Composition API nos permite implementar guardias de navegación robustos y manejo de permisos.
+
+```ts
+// router/guards.ts
+import { useAuth } from '@/composables/useAuth'
+
+export const setupRouteGuards = (router) => {
+  router.beforeEach(async (to, from, next) => {
+    const { user, refreshToken } = useAuth()
+    
+    // Rutas públicas
+    if (to.meta.public) {
+      return next()
+    }
+    
+    // Verificar autenticación
+    if (!user.value) {
+      try {
+        await refreshToken()
+      } catch {
+        return next('/login')
+      }
+    }
+    
+    // Verificar permisos
+    if (to.meta.requiresRole && !user.value?.roles.includes(to.meta.requiresRole)) {
+      return next('/unauthorized')
+    }
+    
+    next()
+  })
+}
+```
+
+## WebSocket Seguro
+
+Las conexiones WebSocket deben ser manejadas con el mismo nivel de seguridad que las peticiones HTTP regulares. Con la Composition API, podemos crear composables que manejan la autenticación y validación de mensajes WebSocket.
+
+```ts
+// composables/useSecureWebSocket.ts
+import { ref, onMounted, onUnmounted } from 'vue'
+
+export const useSecureWebSocket = (url: string) => {
+  const ws = ref<WebSocket | null>(null)
+  const messages = ref([])
+  
+  const connect = () => {
+    ws.value = new WebSocket(url)
+    
+    // Autenticación
+    ws.value.onopen = () => {
+      const token = sessionStorage.getItem('auth-token')
+      ws.value?.send(JSON.stringify({ type: 'auth', token }))
+    }
+    
+    // Validación de mensajes
+    ws.value.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (validateMessage(data)) {
+          messages.value.push(data)
+        }
+      } catch (error) {
+        console.error('Invalid message:', error)
+      }
+    }
+  }
+  
+  onMounted(connect)
+  onUnmounted(() => ws.value?.close())
+  
+  return { messages }
+}
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa HTTPS en producción
+- Implementa CSP (Content Security Policy)
+- Valida todas las entradas de usuario
+- Sanitiza el contenido HTML
+- Usa tokens CSRF
+- Implementa rate limiting
+- Mantén las dependencias actualizadas
+</Aside>
+
+## Content Security Policy
+
+Las políticas de seguridad de contenido (CSP) son una capa adicional de seguridad que ayuda a prevenir ataques XSS y otras vulnerabilidades. Vue 3 es compatible con CSP estrictas, y podemos configurarlas tanto en desarrollo como en producción.
+
+```ts
+// vite.config.ts
+export default defineConfig({
+  server: {
+    headers: {
+      'Content-Security-Policy': `
+        default-src 'self';
+        script-src 'self' 'unsafe-inline';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https:;
+        connect-src 'self' wss:;
+      `
+    }
+  }
+})
+```
+
+## Rate Limiting
+
+El rate limiting es una técnica importante para prevenir abusos y ataques de fuerza bruta. Con la Composition API, podemos implementar rate limiting del lado del cliente de forma elegante y reutilizable.
+
+```ts
+// composables/useRateLimit.ts
+import { ref } from 'vue'
+
+export const useRateLimit = (limit: number, window: number) => {
+  const calls = ref<number[]>([])
+  
+  const isRateLimited = () => {
+    const now = Date.now()
+    calls.value = calls.value.filter(
+      time => now - time < window
+    )
+    
+    if (calls.value.length >= limit) {
+      return true
+    }
+    
+    calls.value.push(now)
+    return false
+  }
+  
+  return { isRateLimited }
+}
+
+// Uso
+const { isRateLimited } = useRateLimit(5, 1000) // 5 llamadas por segundo
+
+const handleSubmit = () => {
+  if (isRateLimited()) {
+    alert('Por favor, espera antes de intentar nuevamente')
+    return
+  }
+  // Procesar submit
+}
+```

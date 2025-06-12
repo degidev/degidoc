@@ -1,0 +1,444 @@
+---
+title: Slots en Vue 3
+description: Aprende a usar slots para crear componentes flexibles y reutilizables en Vue 3 usando la Composition API
+---
+
+Los slots son una característica poderosa de Vue 3 que permite crear componentes altamente reutilizables y flexibles. Con la Composition API, los slots se vuelven aún más potentes al poder combinarlos con composables y referencias reactivas.
+
+## ¿Qué son los Slots?
+
+Los slots son espacios reservados en un componente donde puedes insertar contenido desde el componente padre. Esto permite:
+
+- Crear componentes más flexibles y reutilizables
+- Inyectar contenido dinámico en componentes hijos
+- Compartir datos entre padre e hijo de manera controlada
+- Implementar patrones avanzados como renderless components
+
+<Aside type="tip">
+Los slots son fundamentales para crear bibliotecas de componentes y abstraer patrones complejos de UI.
+</Aside>
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Slots Básicos
+
+```vue
+<!-- Card.vue -->
+<script setup lang="ts">
+interface Props {
+  title?: string
+}
+
+defineProps<Props>()
+</script>
+
+<template>
+  <div class="card">
+    <header class="card-header">
+      <h2>{{ title }}</h2>
+    </header>
+    
+    <div class="card-body">
+      <slot></slot>
+    </div>
+  </div>
+</template>
+
+<!-- Uso -->
+<template>
+  <Card title="Mi Tarjeta">
+    <p>Este es el contenido de la tarjeta</p>
+  </Card>
+</template>
+```
+
+## Slots Nombrados
+
+```vue
+<!-- Layout.vue -->
+<template>
+  <div class="layout">
+    <header class="header">
+      <slot name="header">
+        <!-- Contenido por defecto -->
+        <h1>Header por defecto</h1>
+      </slot>
+    </header>
+
+    <nav class="sidebar">
+      <slot name="sidebar" />
+    </nav>
+
+    <main class="main">
+      <slot />
+    </main>
+
+    <footer class="footer">
+      <slot name="footer" />
+    </footer>
+  </div>
+</template>
+
+<!-- Uso -->
+<template>
+  <Layout>
+    <template #header>
+      <h1>Mi Aplicación</h1>
+    </template>
+
+    <template #sidebar>
+      <nav>
+        <a href="/">Inicio</a>
+        <a href="/about">Acerca de</a>
+      </nav>
+    </template>
+
+    <template #default>
+      <p>Contenido principal</p>
+    </template>
+
+    <template #footer>
+      <p>&copy; 2025 Mi App</p>
+    </template>
+  </Layout>
+</template>
+```
+
+## Scoped Slots
+
+```vue
+<!-- DataList.vue -->
+<script setup lang="ts">
+interface Props<T> {
+  items: T[]
+  filterFn?: (item: T) => boolean
+}
+
+const props = defineProps<Props<any>>()
+
+const filteredItems = computed(() => {
+  if (props.filterFn) {
+    return props.items.filter(props.filterFn)
+  }
+  return props.items
+})
+</script>
+
+<template>
+  <div class="data-list">
+    <div
+      v-for="(item, index) in filteredItems"
+      :key="item.id"
+    >
+      <slot
+        :item="item"
+        :index="index"
+        :isLast="index === filteredItems.length - 1"
+      />
+    </div>
+  </div>
+</template>
+
+<!-- Uso -->
+<script setup>
+const users = [
+  { id: 1, name: 'Juan', role: 'admin' },
+  { id: 2, name: 'María', role: 'user' }
+]
+</script>
+
+<template>
+  <DataList :items="users">
+    <template #default="{ item, index, isLast }">
+      <div :class="['user-item', { 'last': isLast }]">
+        <span>{{ index + 1 }}.</span>
+        <strong>{{ item.name }}</strong>
+        <Badge text={item.role} />
+      </div>
+    </template>
+  </DataList>
+</template>
+```
+
+## Slots Dinámicos
+
+```vue
+<!-- TabPanel.vue -->
+<script setup lang="ts">
+interface Props {
+  tabs: {
+    id: string
+    label: string
+    icon?: string
+  }[]
+  activeTab: string
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:activeTab', id: string): void
+}>()
+</script>
+
+<template>
+  <div class="tab-panel">
+    <div class="tab-headers">
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        :class="['tab-button', { active: activeTab === tab.id }]"
+        @click="emit('update:activeTab', tab.id)"
+      >
+        <i v-if="tab.icon" :class="tab.icon" />
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <div class="tab-content">
+      <template v-for="tab in tabs" :key="tab.id">
+        <div v-show="activeTab === tab.id">
+          <slot :name="tab.id" :tab="tab">
+            <!-- Contenido por defecto -->
+            <p>No hay contenido para {{ tab.label }}</p>
+          </slot>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>
+
+<!-- Uso -->
+<script setup>
+import { ref } from 'vue'
+
+const activeTab = ref('profile')
+const tabs = [
+  { id: 'profile', label: 'Perfil', icon: 'user' },
+  { id: 'settings', label: 'Ajustes', icon: 'cog' }
+]
+</script>
+
+<template>
+  <TabPanel
+    :tabs="tabs"
+    v-model:activeTab="activeTab"
+  >
+    <template #profile="{ tab }">
+      <h2>{{ tab.label }}</h2>
+      <ProfileForm />
+    </template>
+
+    <template #settings>
+      <SettingsPanel />
+    </template>
+  </TabPanel>
+</template>
+```
+
+## Slots Renderless
+
+```vue
+<!-- FetchData.vue -->
+<script setup lang="ts">
+interface Props<T> {
+  url: string
+  transform?: (data: any) => T
+}
+
+const props = defineProps<Props<any>>()
+
+const data = ref<any>(null)
+const loading = ref(false)
+const error = ref<Error | null>(null)
+
+const fetchData = async () => {
+  loading.value = true
+  error.value = null
+  
+  try {
+    const response = await fetch(props.url)
+    if (!response.ok) throw new Error('Failed to fetch')
+    
+    let result = await response.json()
+    if (props.transform) {
+      result = props.transform(result)
+    }
+    
+    data.value = result
+  } catch (e) {
+    error.value = e as Error
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchData)
+</script>
+
+<template>
+  <slot
+    :data="data"
+    :loading="loading"
+    :error="error"
+    :refetch="fetchData"
+  />
+</template>
+
+<!-- Uso -->
+<template>
+  <FetchData
+    url="/api/users"
+    :transform="data => data.items"
+  >
+    <template #default="{ data, loading, error, refetch }">
+      <div v-if="loading">Cargando...</div>
+      
+      <div v-else-if="error">
+        Error: {{ error.message }}
+        <button @click="refetch">Reintentar</button>
+      </div>
+      
+      <div v-else>
+        <UserList :users="data" />
+      </div>
+    </template>
+  </FetchData>
+</template>
+```
+
+## Composición con Slots
+
+```vue
+<!-- Form.vue -->
+<script setup lang="ts">
+import { useForm } from '@/composables/useForm'
+
+const { handleSubmit } = useForm()
+</script>
+
+<template>
+  <form @submit.prevent="handleSubmit">
+    <slot name="header" />
+    
+    <div class="form-fields">
+      <slot />
+    </div>
+    
+    <div class="form-actions">
+      <slot name="actions">
+        <button type="submit">Enviar</button>
+      </slot>
+    </div>
+  </form>
+</template>
+
+<!-- FormField.vue -->
+<script setup lang="ts">
+interface Props {
+  name: string
+  label?: string
+  rules?: ((value: any) => boolean | string)[]
+}
+
+defineProps<Props>()
+</script>
+
+<template>
+  <div class="form-field">
+    <label v-if="label">{{ label }}</label>
+    <slot />
+    <slot name="error" />
+  </div>
+</template>
+
+<!-- Uso -->
+<template>
+  <Form>
+    <template #header>
+      <h2>Registro</h2>
+    </template>
+
+    <FormField
+      name="email"
+      label="Email"
+      :rules="[required, email]"
+    >
+      <input
+        v-model="form.email"
+        type="email"
+      />
+      <template #error="{ error }">
+        <span class="error">{{ error }}</span>
+      </template>
+    </FormField>
+
+    <template #actions>
+      <button type="button" @click="reset">
+        Resetear
+      </button>
+      <button type="submit">
+        Registrar
+      </button>
+    </template>
+  </Form>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa slots nombrados para claridad
+- Proporciona contenido por defecto
+- Documenta la API de slots
+- Usa scoped slots para datos dinámicos
+- Considera componentes renderless
+- Mantén la composición simple
+</Aside>
+
+## Patrones Avanzados
+
+1. **Slot Props Typing**
+```ts
+// Definir tipos para slot props
+interface SlotProps {
+  item: {
+    id: number
+    name: string
+  }
+  index: number
+}
+
+// Uso en template
+<slot v-bind="$props as SlotProps" />
+```
+
+2. **Slot Validation**
+```ts
+// Validar contenido de slots
+onMounted(() => {
+  if (!slots.default) {
+    console.warn('Este componente requiere contenido en el slot default')
+  }
+})
+```
+
+3. **Conditional Slots**
+```vue
+<template>
+  <div class="wrapper">
+    <slot
+      v-if="condition"
+      name="success"
+      :data="data"
+    />
+    <slot
+      v-else
+      name="error"
+      :error="error"
+    />
+  </div>
+</template>
+```

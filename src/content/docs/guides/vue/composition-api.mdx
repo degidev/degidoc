@@ -1,0 +1,78 @@
+---
+title: Composition API
+description: Aprende a usar la Composition API de Vue 3 y sus ventajas sobre Options API
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## ¿Qué es la Composition API?
+
+<Aside type="tip">
+La Composition API es una forma alternativa de organizar la lógica de los componentes en Vue 3, permitiendo una mejor reutilización del código y una organización más clara de la lógica relacionada.
+</Aside>
+
+## Comparación con Options API
+
+<Tabs>
+  <TabItem label="Composition API">
+    ```js
+    import { ref, computed, watch } from 'vue'
+
+    export default {
+      setup() {
+        const count = ref(0)
+        const double = computed(() => count.value * 2)
+
+        watch(count, (newValue) => {
+          console.log(`Count cambió a: ${newValue}`)
+        })
+
+        const increment = () => count.value++
+
+        return {
+          count,
+          double,
+          increment
+        }
+      }
+    }
+    ```
+  </TabItem>
+  <TabItem label="Options API">
+    ```js
+    export default {
+      data() {
+        return {
+          count: 0
+        }
+      },
+      computed: {
+        double() {
+          return this.count * 2
+        }
+      },
+      watch: {
+        count(newValue) {
+          console.log(`Count cambió a: ${newValue}`)
+        }
+      },
+      methods: {
+        increment() {
+          this.count++
+        }
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Ventajas de la Composition API
+
+- <Badge text="Mejor TypeScript" /> Soporte nativo para TypeScript
+- <Badge text="Reutilización" /> Lógica más fácil de reutilizar
+- <Badge text="Organización" /> Código relacionado junto
+- <Badge text="Flexibilidad" /> Más control sobre la lógica del componente
+- <Badge text="Tree-shaking" /> Mejor optimización del código

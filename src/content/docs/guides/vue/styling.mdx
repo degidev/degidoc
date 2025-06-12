@@ -1,0 +1,301 @@
+---
+title: Estilos en Vue 3
+description: Aprende a trabajar con estilos, Tailwind CSS y CSS Modules en Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Scoped Styles
+
+```vue
+<script setup lang="ts">
+interface Props {
+  variant?: 'primary' | 'secondary'
+  size?: 'sm' | 'md' | 'lg'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  variant: 'primary',
+  size: 'md'
+})
+</script>
+
+<template>
+  <button :class="['btn', `btn-${variant}`, `btn-${size}`]">
+    <slot></slot>
+  </button>
+</template>
+
+<style scoped>
+.btn {
+  @apply rounded-lg font-medium transition-colors;
+}
+
+.btn-primary {
+  @apply bg-blue-500 text-white hover:bg-blue-600;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+}
+
+.btn-sm {
+  @apply px-3 py-1 text-sm;
+}
+
+.btn-md {
+  @apply px-4 py-2;
+}
+
+.btn-lg {
+  @apply px-6 py-3 text-lg;
+}
+</style>
+```
+
+## Uso de Tailwind CSS
+
+```vue
+<script setup lang="ts">
+interface Props {
+  title: string
+  description: string
+  imageUrl: string
+  tags?: string[]
+}
+
+defineProps<Props>()
+</script>
+
+<template>
+  <div class="overflow-hidden rounded-lg bg-white shadow-md transition hover:shadow-lg">
+    <img
+      :src="imageUrl"
+      :alt="title"
+      class="h-48 w-full object-cover"
+    />
+    
+    <div class="p-4">
+      <h3 class="mb-2 text-xl font-bold text-gray-900">
+        {{ title }}
+      </h3>
+      
+      <p class="mb-4 text-gray-600">
+        {{ description }}
+      </p>
+      
+      <div class="flex flex-wrap gap-2">
+        <span
+          v-for="tag in tags"
+          :key="tag"
+          class="rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
+        >
+          {{ tag }}
+        </span>
+      </div>
+    </div>
+  </div>
+</template>
+```
+
+## @apply en Archivos CSS
+
+```vue
+<!-- styles/components.css -->
+@layer components {
+  .input-base {
+    @apply w-full rounded-lg border border-gray-300 px-4 py-2 outline-none transition;
+    @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20;
+  }
+
+  .input-error {
+    @apply border-red-500 bg-red-50;
+    @apply focus:border-red-500 focus:ring-red-500/20;
+  }
+
+  .btn-base {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2;
+    @apply font-medium transition-colors;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-blue-500 text-white;
+    @apply hover:bg-blue-600;
+    @apply focus:ring-blue-500;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800;
+    @apply hover:bg-gray-300;
+    @apply focus:ring-gray-500;
+  }
+}
+```
+
+## Componentes con Estilos Reutilizables
+
+```vue
+<!-- Input.vue -->
+<script setup lang="ts">
+interface Props {
+  modelValue: string
+  label?: string
+  error?: string
+  type?: 'text' | 'email' | 'password'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  type: 'text'
+})
+
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string): void
+}>()
+</script>
+
+<template>
+  <div class="form-group">
+    <label
+      v-if="label"
+      class="mb-1 block text-sm font-medium text-gray-700"
+    >
+      {{ label }}
+    </label>
+
+    <input
+      :type="type"
+      :value="modelValue"
+      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+      :class="[
+        'input-base',
+        error ? 'input-error' : ''
+      ]"
+    />
+
+    <p
+      v-if="error"
+      class="mt-1 text-sm text-red-600"
+    >
+      {{ error }}
+    </p>
+  </div>
+</template>
+```
+
+## Diseño Responsivo
+
+```vue
+<template>
+  <div class="container mx-auto px-4">
+    <!-- Grid responsivo -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="rounded-lg bg-white p-4 shadow-md">
+        <!-- Tamaños de texto responsivos -->
+        <h2 class="text-lg sm:text-xl lg:text-2xl">
+          Título
+        </h2>
+        
+        <!-- Espaciado responsivo -->
+        <p class="mt-2 sm:mt-3 lg:mt-4">
+          Contenido
+        </p>
+      </div>
+    </div>
+
+    <!-- Flexbox responsivo -->
+    <div class="mt-8 flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
+      <div class="flex-1">
+        Columna 1
+      </div>
+      <div class="flex-1">
+        Columna 2
+      </div>
+    </div>
+
+    <!-- Visibilidad responsiva -->
+    <div class="hidden sm:block">
+      Solo visible en pantallas sm y mayores
+    </div>
+    <div class="sm:hidden">
+      Solo visible en móvil
+    </div>
+  </div>
+</template>
+```
+
+## Temas y Variables CSS
+
+```vue
+<!-- variables.css -->
+:root {
+  /* Colores del tema */
+  --color-primary: theme('colors.blue.500');
+  --color-primary-hover: theme('colors.blue.600');
+  --color-secondary: theme('colors.gray.200');
+  --color-secondary-hover: theme('colors.gray.300');
+  
+  /* Espaciado */
+  --spacing-base: theme('spacing.4');
+  --spacing-large: theme('spacing.6');
+  
+  /* Radios de borde */
+  --radius-base: theme('borderRadius.lg');
+  
+  /* Sombras */
+  --shadow-base: theme('boxShadow.md');
+  --shadow-hover: theme('boxShadow.lg');
+}
+
+[data-theme="dark"] {
+  --color-primary: theme('colors.blue.400');
+  --color-primary-hover: theme('colors.blue.500');
+  --color-secondary: theme('colors.gray.700');
+  --color-secondary-hover: theme('colors.gray.600');
+}
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa `scoped` para evitar conflictos de CSS
+- Aprovecha las utilidades de Tailwind
+- Crea componentes base reutilizables
+- Mantén consistencia en el diseño
+- Usa variables CSS para temas
+- Implementa diseño responsivo desde el inicio
+</Aside>
+
+## Animaciones con Tailwind
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const isOpen = ref(false)
+</script>
+
+<template>
+  <div>
+    <button
+      @click="isOpen = !isOpen"
+      class="transform transition-transform hover:scale-105 active:scale-95"
+    >
+      Toggle
+    </button>
+
+    <div
+      v-show="isOpen"
+      class="transform transition-all duration-300"
+      :class="[
+        isOpen ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+      ]"
+    >
+      Contenido animado
+    </div>
+  </div>
+</template>
+```

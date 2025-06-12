@@ -1,0 +1,408 @@
+---
+title: Testing en Vue 3
+description: Aprende a realizar pruebas unitarias, de integración y e2e en Vue 3 con la Composition API
+---
+
+Las pruebas son fundamentales en Vue 3, especialmente cuando trabajamos con la Composition API. La naturaleza modular y funcional de la Composition API hace que nuestro código sea más fácil de probar.
+
+## ¿Por qué es importante el Testing?
+
+Las pruebas en Vue 3 con Composition API nos permiten:
+
+- Validar la lógica de composables de forma aislada
+- Probar componentes y sus interacciones
+- Verificar el flujo de datos reactivos
+- Asegurar el correcto funcionamiento de efectos secundarios
+- Mantener la calidad del código a largo plazo
+
+<Aside type="tip">
+La Composition API facilita el testing al permitirnos probar la lógica de forma aislada de los componentes.
+</Aside>
+
+<Aside type="caution">
+Recuerda mockear las dependencias externas y mantener las pruebas enfocadas en comportamientos específicos.
+</Aside>
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Configuración de Vitest
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [vue()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./vitest.setup.ts']
+  }
+})
+
+// vitest.setup.ts
+import '@testing-library/jest-dom'
+import { vi } from 'vitest'
+import { config } from '@vue/test-utils'
+
+// Configuración global
+config.global.mocks = {
+  $t: (key: string) => key
+}
+```
+
+## Pruebas de Componentes
+
+```ts
+// components/Counter.test.ts
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import Counter from './Counter.vue'
+
+describe('Counter', () => {
+  it('renderiza el valor inicial', () => {
+    const wrapper = mount(Counter, {
+      props: {
+        initialValue: 5
+      }
+    })
+    
+    expect(wrapper.text()).toContain('5')
+  })
+  
+  it('incrementa el contador', async () => {
+    const wrapper = mount(Counter)
+    
+    await wrapper.find('button').trigger('click')
+    
+    expect(wrapper.text()).toContain('1')
+  })
+  
+  it('emite eventos de actualización', async () => {
+    const wrapper = mount(Counter)
+    
+    await wrapper.find('button').trigger('click')
+    
+    expect(wrapper.emitted()).toHaveProperty('update')
+    expect(wrapper.emitted('update')![0]).toEqual([1])
+  })
+})
+```
+
+## Pruebas de Composables
+
+```ts
+// composables/useCounter.test.ts
+import { describe, it, expect } from 'vitest'
+import { useCounter } from './useCounter'
+import { mount } from '@vue/test-utils'
+
+describe('useCounter', () => {
+  it('maneja el estado inicial', () => {
+    const { count, increment } = useCounter(5)
+    
+    expect(count.value).toBe(5)
+    
+    increment()
+    expect(count.value).toBe(6)
+  })
+  
+  it('funciona en un componente', () => {
+    const wrapper = mount({
+      template: `
+        <div>
+          <span>{{ count }}</span>
+          <button @click="increment">+</button>
+        </div>
+      `,
+      setup() {
+        return useCounter()
+      }
+    })
+    
+    expect(wrapper.text()).toContain('0')
+    
+    wrapper.find('button').trigger('click')
+    expect(wrapper.text()).toContain('1')
+  })
+})
+```
+
+## Pruebas de Store
+
+```ts
+// stores/counter.test.ts
+import { describe, it, expect, beforeEach } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+import { useCounterStore } from './counter'
+
+describe('Counter Store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+  
+  it('incrementa el contador', () => {
+    const store = useCounterStore()
+    
+    expect(store.count).toBe(0)
+    
+    store.increment()
+    expect(store.count).toBe(1)
+  })
+  
+  it('maneja acciones asíncronas', async () => {
+    const store = useCounterStore()
+    
+    await store.incrementAsync()
+    expect(store.count).toBe(1)
+  })
+})
+```
+
+## Pruebas de API
+
+```ts
+// services/api.test.ts
+import { describe, it, expect, vi } from 'vitest'
+import { useApi } from './api'
+import axios from 'axios'
+
+vi.mock('axios')
+
+describe('API Service', () => {
+  it('maneja peticiones exitosas', async () => {
+    const mockData = { id: 1, name: 'Test' }
+    vi.mocked(axios.get).mockResolvedValue({ data: mockData })
+    
+    const { data, error, loading, get } = useApi()
+    
+    expect(loading.value).toBe(false)
+    
+    const promise = get('/test')
+    expect(loading.value).toBe(true)
+    
+    await promise
+    expect(loading.value).toBe(false)
+    expect(data.value).toEqual(mockData)
+    expect(error.value).toBeNull()
+  })
+  
+  it('maneja errores', async () => {
+    const mockError = new Error('API Error')
+    vi.mocked(axios.get).mockRejectedValue(mockError)
+    
+    const { data, error, get } = useApi()
+    
+    await expect(get('/test')).rejects.toThrow('API Error')
+    expect(data.value).toBeNull()
+    expect(error.value).toBe(mockError)
+  })
+})
+```
+
+## Pruebas de Router
+
+```ts
+// views/UserProfile.test.ts
+import { describe, it, expect, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createRouter, createMemoryHistory } from 'vue-router'
+import UserProfile from './UserProfile.vue'
+
+describe('UserProfile', () => {
+  it('carga datos del usuario', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/users/:id',
+          name: 'UserProfile',
+          component: UserProfile
+        }
+      ]
+    })
+    
+    router.push('/users/123')
+    await router.isReady()
+    
+    const wrapper = mount(UserProfile, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.text()).toContain('Cargando...')
+    
+    // Esperar a que los datos se carguen
+    await wrapper.vm.$nextTick()
+    
+    expect(wrapper.text()).toContain('Usuario 123')
+  })
+})
+```
+
+## Pruebas de Integración
+
+```ts
+// tests/integration/checkout.test.ts
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createTestingPinia } from '@pinia/testing'
+import Checkout from './Checkout.vue'
+import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
+
+describe('Checkout Flow', () => {
+  it('completa el proceso de checkout', async () => {
+    const wrapper = mount(Checkout, {
+      global: {
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            initialState: {
+              cart: {
+                items: [
+                  { id: 1, name: 'Product 1', price: 10 }
+                ]
+              },
+              auth: {
+                user: { id: 1, name: 'Test User' }
+              }
+            }
+          })
+        ]
+      }
+    })
+    
+    const cartStore = useCartStore()
+    const authStore = useAuthStore()
+    
+    // Llenar formulario
+    await wrapper.find('[data-test="address"]').setValue('123 Test St')
+    await wrapper.find('[data-test="payment"]').setValue('4242424242424242')
+    
+    // Enviar orden
+    await wrapper.find('form').trigger('submit')
+    
+    // Verificar que la orden se creó
+    expect(cartStore.createOrder).toHaveBeenCalled()
+    expect(cartStore.items).toHaveLength(0)
+    expect(wrapper.text()).toContain('¡Gracias por tu compra!')
+  })
+})
+```
+
+## Pruebas E2E con Cypress
+
+```ts
+// cypress/e2e/auth.cy.ts
+describe('Authentication', () => {
+  it('permite a usuarios iniciar sesión', () => {
+    cy.visit('/login')
+    
+    cy.get('[data-test="email"]')
+      .type('test@example.com')
+    
+    cy.get('[data-test="password"]')
+      .type('password123')
+    
+    cy.get('[data-test="submit"]')
+      .click()
+    
+    cy.url().should('include', '/dashboard')
+    cy.contains('Bienvenido')
+  })
+  
+  it('muestra errores de validación', () => {
+    cy.visit('/login')
+    
+    cy.get('[data-test="submit"]')
+      .click()
+    
+    cy.get('[data-test="email-error"]')
+      .should('be.visible')
+      .and('contain', 'Email es requerido')
+  })
+})
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa data-test para selectores
+- Escribe pruebas aisladas
+- Mockea dependencias externas
+- Prueba comportamiento, no implementación
+- Mantén las pruebas simples
+- Usa fixtures para datos de prueba
+</Aside>
+
+## Mocking y Stubs
+
+```ts
+// tests/mocks/api.ts
+export const mockApi = {
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn()
+}
+
+// tests/stubs/router.ts
+export const routerStub = {
+  push: vi.fn(),
+  replace: vi.fn(),
+  currentRoute: {
+    value: {
+      path: '/',
+      params: {},
+      query: {}
+    }
+  }
+}
+
+// Uso en pruebas
+const wrapper = mount(Component, {
+  global: {
+    mocks: {
+      $api: mockApi,
+      $router: routerStub
+    }
+  }
+})
+```
+
+## Testing Utilities
+
+```ts
+// tests/utils/index.ts
+import { mount } from '@vue/test-utils'
+import { createTestingPinia } from '@pinia/testing'
+import { router } from '@/router'
+
+export function mountWithDeps(component: any, options = {}) {
+  return mount(component, {
+    global: {
+      plugins: [
+        router,
+        createTestingPinia({
+          createSpy: vi.fn
+        })
+      ],
+      ...options.global
+    },
+    ...options
+  })
+}
+
+// Uso
+const wrapper = mountWithDeps(MyComponent, {
+  props: {
+    title: 'Test'
+  }
+})
+```

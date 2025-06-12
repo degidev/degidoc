@@ -1,0 +1,258 @@
+---
+title: Ciclo de Vida en Vue 3
+description: Aprende sobre los hooks del ciclo de vida en Vue 3 con la Composition API
+---
+
+El ciclo de vida de un componente en Vue 3 representa las diferentes etapas por las que pasa desde su creación hasta su destrucción. La Composition API nos proporciona hooks para interactuar con cada una de estas etapas.
+
+## Hooks del Ciclo de Vida
+
+Los hooks del ciclo de vida son funciones que nos permiten ejecutar código en momentos específicos. Puntos clave:
+
+- **Orden**: Se ejecutan en secuencia predecible
+- **Composición**: Se pueden usar múltiples hooks
+- **Limpieza**: Permiten gestionar recursos
+- **Async/Await**: Soportan operaciones asíncronas
+- **Tipado**: Totalmente compatibles con TypeScript
+
+<Aside type="tip">
+En Vue 3, los hooks del ciclo de vida se importan desde 'vue' y se usan dentro de `setup()` o `<script setup>`.
+</Aside>
+
+### onMounted()
+
+`onMounted()` se ejecuta cuando el componente se monta en el DOM. Casos de uso:
+
+- **DOM**: Acceder a elementos del DOM
+- **APIs**: Realizar llamadas iniciales
+- **Librerías**: Inicializar librerías externas
+- **Suscripciones**: Establecer listeners
+- **Referencias**: Acceder a refs montadas
+```vue
+<script setup>
+import { ref, onMounted } from 'vue'
+
+const elementRef = ref(null)
+
+onMounted(() => {
+  console.log('Componente montado')
+  console.log(elementRef.value) // Acceso al DOM
+})
+</script>
+
+<template>
+  <div ref="elementRef">Contenido</div>
+</template>
+```
+
+### onUpdated()
+
+`onUpdated()` se ejecuta cuando el componente se actualiza. Usos comunes:
+
+- **DOM**: Manipular el DOM actualizado
+- **Efectos**: Responder a cambios de datos
+- **Mediciones**: Calcular dimensiones actualizadas
+- **Animaciones**: Trigger de animaciones
+- **Integraciones**: Sincronizar con librerías externas
+```vue
+<script setup>
+import { ref, onUpdated } from 'vue'
+
+const count = ref(0)
+
+onUpdated(() => {
+  console.log('Componente actualizado')
+  console.log('Nuevo valor:', count.value)
+})
+</script>
+
+<template>
+  <button @click="count++">
+    Incrementar ({{ count }})
+  </button>
+</template>
+```
+
+### onUnmounted()
+
+`onUnmounted()` se ejecuta cuando el componente se desmonta. Tareas importantes:
+
+- **Limpieza**: Cancelar timers y suscripciones
+- **Memoria**: Prevenir memory leaks
+- **Eventos**: Remover event listeners
+- **Conexiones**: Cerrar conexiones WebSocket
+- **Cache**: Limpiar cachés locales
+
+```vue
+<script setup>
+import { onMounted, onUnmounted } from 'vue'
+
+let intervalId
+
+onMounted(() => {
+  intervalId = setInterval(() => {
+    console.log('Tick')
+  }, 1000)
+})
+
+onUnmounted(() => {
+  clearInterval(intervalId)
+  console.log('Componente desmontado y limpiado')
+})
+</script>
+```
+
+## Hooks Adicionales
+
+### onBeforeMount()
+```js
+import { onBeforeMount } from 'vue'
+
+onBeforeMount(() => {
+  console.log('Antes del montaje')
+  // Útil para preparación final antes del montaje
+})
+```
+
+### onBeforeUpdate()
+```js
+import { onBeforeUpdate } from 'vue'
+
+onBeforeUpdate(() => {
+  console.log('Antes de la actualización')
+  // Capturar estado antes de una actualización
+})
+```
+
+### onBeforeUnmount()
+```js
+import { onBeforeUnmount } from 'vue'
+
+onBeforeUnmount(() => {
+  console.log('Antes del desmontaje')
+  // Limpieza final antes del desmontaje
+})
+```
+
+## Ejemplo Completo
+
+```vue
+<script setup>
+import { 
+  ref,
+  onBeforeMount,
+  onMounted,
+  onBeforeUpdate,
+  onUpdated,
+  onBeforeUnmount,
+  onUnmounted
+} from 'vue'
+
+const count = ref(0)
+const mounted = ref(false)
+
+// Antes del montaje
+onBeforeMount(() => {
+  console.log('1. Antes del montaje')
+  // El DOM aún no está disponible
+})
+
+// Montaje
+onMounted(() => {
+  console.log('2. Componente montado')
+  mounted.value = true
+  // El DOM está disponible
+})
+
+// Antes de actualizar
+onBeforeUpdate(() => {
+  console.log('3. Antes de actualizar')
+  // Capturar estado antes de la actualización
+})
+
+// Después de actualizar
+onUpdated(() => {
+  console.log('4. Componente actualizado')
+  // DOM actualizado
+})
+
+// Antes de desmontar
+onBeforeUnmount(() => {
+  console.log('5. Antes de desmontar')
+  // Preparar para limpieza
+})
+
+// Desmontaje
+onUnmounted(() => {
+  console.log('6. Componente desmontado')
+  // Limpieza completa
+})
+</script>
+
+<template>
+  <div>
+    <p>Estado: {{ mounted ? 'Montado' : 'No montado' }}</p>
+    <button @click="count++">
+      Actualizar ({{ count }})
+    </button>
+  </div>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa `onMounted` para inicializaciones que requieren DOM
+- Usa `onUnmounted` para limpiar recursos (eventos, timers)
+- Evita operaciones pesadas en `onUpdated`
+- Considera `onBeforeUpdate` para capturar estado pre-actualización
+- Usa múltiples hooks del mismo tipo si es necesario
+</Aside>
+
+## Casos de Uso Comunes
+
+### Integración con Librerías Externas
+```vue
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+import SomeExternalLibrary from 'external-library'
+
+const containerRef = ref(null)
+let instance
+
+onMounted(() => {
+  instance = new SomeExternalLibrary(containerRef.value, {
+    // opciones
+  })
+})
+
+onUnmounted(() => {
+  if (instance) {
+    instance.destroy()
+  }
+})
+</script>
+
+<template>
+  <div ref="containerRef"></div>
+</template>
+```
+
+### Manejo de Eventos Globales
+```vue
+<script setup>
+import { onMounted, onUnmounted } from 'vue'
+
+const handleScroll = () => {
+  console.log('Scroll position:', window.scrollY)
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+})
+</script>
+```

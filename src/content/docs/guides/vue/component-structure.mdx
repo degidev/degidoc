@@ -1,0 +1,113 @@
+---
+title: Estructura del Componente
+description: Aprende la estructura moderna de componentes en Vue 3 con script setup y TypeScript
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Script Setup
+
+<Aside type="tip" label="Sintaxis Moderna">
+La sintaxis `<script setup>` es la forma recomendada de escribir componentes en Vue 3. Proporciona una experiencia de desarrollo más ergonómica y un mejor rendimiento.
+</Aside>
+
+### Ejemplo Básico
+
+<Tabs>
+  <TabItem label="JavaScript">
+    ```vue
+    <script setup>
+    import { ref } from 'vue'
+
+    const message = ref('Hola Vue 3!')
+    const count = ref(0)
+
+    const increment = () => count.value++
+    </script>
+
+    <template>
+      <h1>{{ message }}</h1>
+      <button @click="increment">Count: {{ count }}</button>
+    </template>
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```vue
+    <script setup lang="ts">
+    import { ref } from 'vue'
+
+    interface User {
+      id: number
+      name: string
+    }
+
+    const message = ref<string>('Hola Vue 3!')
+    const count = ref<number>(0)
+    const user = ref<User>({ id: 1, name: 'Juan' })
+
+    const increment = () => count.value++
+    </script>
+
+    <template>
+      <h1>{{ message }}</h1>
+      <button @click="increment">Count: {{ count }}</button>
+      <p>Usuario: {{ user.name }}</p>
+    </template>
+    ```
+  </TabItem>
+</Tabs>
+
+## Características de Script Setup
+
+- <Badge text="Menos código boilerplate" />
+- <Badge text="Mejor inferencia de tipos" />
+- <Badge text="Macros de compilación" />
+- <Badge text="Mejor rendimiento" />
+
+## Organización Recomendada
+
+```vue
+<script setup lang="ts">
+// Imports
+import { ref, computed } from 'vue'
+import MyComponent from './MyComponent.vue'
+
+// Interfaces/Types
+interface Props {
+  title: string
+}
+
+// Props y Emits
+const props = defineProps<Props>()
+const emit = defineEmits(['update'])
+
+// Estado reactivo
+const count = ref(0)
+
+// Computadas
+const doubleCount = computed(() => count.value * 2)
+
+// Métodos
+const increment = () => {
+  count.value++
+  emit('update', count.value)
+}
+</script>
+
+<template>
+  <div>
+    <h1>{{ props.title }}</h1>
+    <button @click="increment">
+      Count: {{ count }} (Double: {{ doubleCount }})
+    </button>
+    <MyComponent />
+  </div>
+</template>
+
+<style scoped>
+/* Estilos específicos del componente */
+</style>
+```

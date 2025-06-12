@@ -1,0 +1,247 @@
+---
+title: Props y Eventos en Vue 3
+description: Aprende a manejar props y eventos en Vue 3 con TypeScript y Composition API
+---
+
+Las props y eventos son fundamentales en Vue 3 para la comunicación entre componentes. Con la Composition API y TypeScript, tenemos un sistema robusto y type-safe para manejar esta comunicación.
+
+<Aside type="tip">
+La Composition API nos permite definir props y eventos de forma más clara y con mejor soporte de TypeScript que la Options API.
+</Aside>
+
+## ¿Qué son las Props y Eventos?
+
+Las props son propiedades que pasamos a un componente hijo desde su padre, mientras que los eventos permiten que el hijo notifique al padre sobre cambios o acciones. En Vue 3 con la Composition API, tenemos varias formas de trabajar con ellos:
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## defineProps()
+
+`defineProps()` es una función macro de la Composition API para declarar props. Puntos clave:
+
+- **TypeScript**: Define interfaces para tipado estático y autocompletado
+- **JavaScript**: Usa objetos para validación en tiempo de ejecución
+- **Validación**: Verifica tipos, requeridos y valores por defecto
+- **Inmutable**: Las props son de solo lectura
+- **Reactivo**: Actualización automática al cambiar
+
+<Tabs>
+  <TabItem label="TypeScript">
+    ```vue
+    <script setup lang="ts">
+    interface Props {
+      title: string
+      count?: number
+      items: string[]
+      user: {
+        id: number
+        name: string
+      }
+    }
+
+    const props = defineProps<Props>()
+    </script>
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```vue
+    <script setup>
+    const props = defineProps({
+      title: String,
+      count: {
+        type: Number,
+        default: 0
+      },
+      items: {
+        type: Array,
+        required: true
+      },
+      user: {
+        type: Object,
+        required: true
+      }
+    })
+    </script>
+    ```
+  </TabItem>
+</Tabs>
+
+## defineEmits()
+
+`defineEmits()` es una función macro para declarar eventos. Características principales:
+
+- **Tipado**: Define tipos exactos para payload de eventos
+- **Validación**: Verifica nombres y tipos de eventos
+- **Documentación**: Autodocumenta la API de eventos
+- **Rendimiento**: Optimiza la compilación de templates
+- **Desarrollo**: Errores claros si se usa incorrectamente
+
+<Aside type="tip">
+Los eventos permiten la comunicación del hijo al padre.
+</Aside>
+
+<Tabs>
+  <TabItem label="TypeScript">
+    ```vue
+    <script setup lang="ts">
+    interface Emits {
+      (event: 'update', value: number): void
+      (event: 'submit', data: { id: number, text: string }): void
+    }
+
+    const emit = defineEmits<Emits>()
+
+    const handleClick = () => {
+      emit('update', 42)
+    }
+
+    const handleSubmit = () => {
+      emit('submit', { id: 1, text: 'Hello' })
+    }
+    </script>
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```vue
+    <script setup>
+    const emit = defineEmits(['update', 'submit'])
+
+    const handleClick = () => {
+      emit('update', 42)
+    }
+
+    const handleSubmit = () => {
+      emit('submit', { id: 1, text: 'Hello' })
+    }
+    </script>
+    ```
+  </TabItem>
+</Tabs>
+
+## Comunicación Padre ↔ Hijo
+
+La comunicación entre componentes sigue un patrón unidireccional. Aspectos clave:
+
+- **Props**: Datos del padre al hijo (↓)
+- **Eventos**: Notificaciones del hijo al padre (↑)
+- **Flujo**: Unidireccional y predecible
+- **Mantenimiento**: Fácil de debuggear y testear
+- **Reactividad**: Actualizaciones automáticas
+
+### Componente Padre
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import ChildComponent from './ChildComponent.vue'
+
+const count = ref(0)
+const message = ref('')
+
+const handleUpdate = (value: number) => {
+  count.value = value
+}
+
+const handleMessage = (text: string) => {
+  message.value = text
+}
+</script>
+
+<template>
+  <ChildComponent
+    :count="count"
+    :title="'Mi Título'"
+    @update="handleUpdate"
+    @message="handleMessage"
+  />
+  <p>Contador: {{ count }}</p>
+  <p>Mensaje: {{ message }}</p>
+</template>
+```
+
+### Componente Hijo
+```vue
+<script setup lang="ts">
+interface Props {
+  count: number
+  title: string
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update', value: number): void
+  (e: 'message', text: string): void
+}>()
+
+const increment = () => {
+  emit('update', props.count + 1)
+}
+
+const sendMessage = () => {
+  emit('message', '¡Hola desde el hijo!')
+}
+</script>
+
+<template>
+  <div>
+    <h2>{{ title }}</h2>
+    <button @click="increment">Incrementar ({{ count }})</button>
+    <button @click="sendMessage">Enviar Mensaje</button>
+  </div>
+</template>
+```
+
+## Mejores Prácticas
+
+Prácticas recomendadas para props y eventos:
+
+- **TypeScript**: Usa interfaces y tipos para validación estática
+- **Validación**: Define props requeridas y tipos esperados
+- **Nombres**: Usa convenciones claras y consistentes
+- **Documentación**: Comenta el propósito de cada prop y evento
+- **Defaults**: Proporciona valores por defecto cuando sea apropiado
+
+<Aside type="tip" label="Recomendaciones">
+- Define tipos para props y eventos usando TypeScript
+- Usa valores por defecto cuando sea apropiado
+- Valida las props requeridas
+- Mantén los nombres de eventos consistentes
+- Documenta la API de tu componente
+</Aside>
+
+## v-model Personalizado
+
+`v-model` implementa binding bidireccional. Características principales:
+
+- **Props**: Usa `modelValue` por defecto
+- **Eventos**: Emite `update:modelValue`
+- **Personalización**: Permite múltiples v-model
+- **Formularios**: Ideal para inputs personalizados
+- **Validación**: Integra con validación de formularios
+
+```vue
+<script setup lang="ts">
+interface Props {
+  modelValue: string
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string): void
+}>()
+
+const updateValue = (event: Event) => {
+  emit('update:modelValue', (event.target as HTMLInputElement).value)
+}
+</script>
+
+<template>
+  <input
+    :value="modelValue"
+    @input="updateValue"
+    type="text"
+  />
+</template>
+```

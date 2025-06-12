@@ -1,0 +1,280 @@
+---
+title: Computadas y Watchers en Vue 3
+description: Aprende a usar propiedades computadas y watchers en Vue 3 con la Composition API
+---
+
+Las propiedades computadas y watchers son herramientas esenciales en Vue 3 para manejar la reactividad de forma eficiente. Las computadas nos permiten derivar nuevos valores a partir de datos reactivos, mientras que los watchers nos permiten reaccionar a cambios en los datos.
+
+<Aside type="tip">
+Las computadas son ideales para transformaciones de datos que dependen de otras variables, mientras que los watchers son mejores para efectos secundarios como llamadas a APIs o actualizaciones del DOM.
+</Aside>
+
+## ¿Cuándo usar cada uno?
+
+- **Computadas**: Cuando necesitas transformar o combinar datos reactivos de forma declarativa
+- **Watchers**: Cuando necesitas ejecutar efectos secundarios en respuesta a cambios
+
+Veamos cómo implementarlos con la Composition API:
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## computed()
+
+<Aside type="tip">
+Las propiedades computadas son valores reactivos que se calculan automáticamente basados en otras dependencias reactivas.
+</Aside>
+
+### Computadas de Solo Lectura
+
+Las computadas de solo lectura son perfectas cuando necesitamos transformar datos pero no modificarlos directamente. Por ejemplo:
+- Filtrar o ordenar listas
+- Formatear texto o números
+- Calcular valores derivados
+```vue
+<script setup>
+import { ref, computed } from 'vue'
+
+const count = ref(0)
+const double = computed(() => count.value * 2)
+const isEven = computed(() => count.value % 2 === 0)
+</script>
+
+<template>
+  <button @click="count++">
+    Count: {{ count }} | Double: {{ double }} | {{ isEven ? 'Par' : 'Impar' }}
+  </button>
+</template>
+```
+
+### Computadas Escribibles
+
+Las computadas escribibles nos permiten tanto leer como modificar valores computados. Son útiles para:
+- Implementar v-model personalizado
+- Sincronizar múltiples campos
+- Transformar datos en ambas direcciones
+```vue
+<script setup>
+import { ref, computed } from 'vue'
+
+const firstName = ref('Juan')
+const lastName = ref('Pérez')
+
+const fullName = computed({
+  get: () => `${firstName.value} ${lastName.value}`,
+  set: (newValue) => {
+    [firstName.value, lastName.value] = newValue.split(' ')
+  }
+})
+</script>
+
+<template>
+  <input v-model="fullName" />
+  <p>Nombre: {{ firstName }}</p>
+  <p>Apellido: {{ lastName }}</p>
+</template>
+```
+
+## watch()
+
+`watch()` es una función que nos permite observar cambios en una o más fuentes de datos reactivas y ejecutar una función cuando estos cambios ocurren. Es especialmente útil para:
+- Realizar llamadas a APIs
+- Actualizar el DOM
+- Ejecutar efectos secundarios
+
+<Tabs>
+  <TabItem label="Watch Básico">
+    ```js
+    import { ref, watch } from 'vue'
+
+    const count = ref(0)
+
+    watch(count, (newValue, oldValue) => {
+      console.log('Count cambió:', oldValue, '=>', newValue)
+    })
+    ```
+  </TabItem>
+  <TabItem label="Watch Múltiple">
+    ```js
+    import { ref, watch } from 'vue'
+
+    const x = ref(0)
+    const y = ref(0)
+
+    watch([x, y], ([newX, newY], [oldX, oldY]) => {
+      console.log('X cambió de', oldX, 'a', newX)
+      console.log('Y cambió de', oldY, 'a', newY)
+    })
+    ```
+  </TabItem>
+</Tabs>
+
+### Opciones de Watch
+
+Las opciones de watch nos permiten personalizar cómo y cuándo se ejecuta el watcher:
+- `immediate`: Ejecutar al crear el watcher
+- `deep`: Observar cambios en objetos anidados
+- `flush`: Controlar el momento de ejecución
+
+```js
+watch(source, callback, {
+  immediate: true, // ejecutar inmediatamente
+  deep: true,     // observar cambios profundos
+  flush: 'post'   // ejecutar después de la actualización del DOM
+})
+```
+
+## watchEffect()
+
+`watchEffect()` es una alternativa más simple a `watch()` que rastrea automáticamente las dependencias. Es ideal para:
+- Código que depende de múltiples valores reactivos
+- Efectos que necesitan ejecutarse inmediatamente
+- Casos donde no necesitamos el valor anterior
+
+<Aside type="tip">
+`watchEffect` ejecuta y rastrea automáticamente las dependencias reactivas.
+</Aside>
+
+```js
+import { ref, watchEffect } from 'vue'
+
+const count = ref(0)
+const message = ref('Hola')
+
+watchEffect(() => {
+  console.log(`Count es ${count.value}, mensaje es ${message.value}`)
+})
+
+// Se ejecuta automáticamente cuando count o message cambian
+```
+
+## Diferencias entre watch y watchEffect
+
+Es importante entender cuándo usar cada uno:
+- `watch`: Cuando necesitas control preciso sobre qué observar y acceso a valores anteriores
+- `watchEffect`: Cuando quieres un código más conciso y rastreo automático de dependencias
+
+<Tabs>
+  <TabItem label="watch">
+    ```js
+    const count = ref(0)
+    
+    // Específico sobre qué observar
+    watch(count, (newValue, oldValue) => {
+      console.log('Count cambió a:', newValue)
+    })
+    ```
+  </TabItem>
+  <TabItem label="watchEffect">
+    ```js
+    const count = ref(0)
+    
+    // Rastrea automáticamente dependencias
+    watchEffect(() => {
+      console.log('Count actual:', count.value)
+    })
+    ```
+  </TabItem>
+</Tabs>
+
+## Ejemplos Prácticos
+
+Veamos algunos casos de uso comunes donde las computadas y watchers son especialmente útiles:
+- Validación de formularios en tiempo real
+- Búsqueda con debounce
+- Sincronización de datos
+
+### Formulario con Validación
+
+Este ejemplo muestra cómo usar computadas para validación en tiempo real:
+- Validación de email y contraseña
+- Estado global del formulario
+- Retroalimentación visual inmediata
+```vue
+<script setup>
+import { ref, computed, watch } from 'vue'
+
+const email = ref('')
+const password = ref('')
+
+const isEmailValid = computed(() => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
+})
+
+const isPasswordValid = computed(() => {
+  return password.value.length >= 8
+})
+
+const formIsValid = computed(() => {
+  return isEmailValid.value && isPasswordValid.value
+})
+
+watch([email, password], () => {
+  if (formIsValid.value) {
+    console.log('Formulario válido')
+  }
+})
+</script>
+
+<template>
+  <form @submit.prevent>
+    <input
+      v-model="email"
+      type="email"
+      :class="{ 'is-valid': isEmailValid, 'is-invalid': !isEmailValid }"
+    />
+    <input
+      v-model="password"
+      type="password"
+      :class="{ 'is-valid': isPasswordValid, 'is-invalid': !isPasswordValid }"
+    />
+    <button :disabled="!formIsValid">Enviar</button>
+  </form>
+</template>
+```
+
+### Búsqueda con Debounce
+
+Un ejemplo práctico de cómo usar watchers para implementar búsqueda con debounce:
+- Evita llamadas API innecesarias
+- Mejora la experiencia del usuario
+- Manejo de estados de carga
+```vue
+<script setup>
+import { ref, watch } from 'vue'
+
+const searchQuery = ref('')
+const results = ref([])
+const isLoading = ref(false)
+
+// Debounced search
+watch(searchQuery, async (newQuery) => {
+  if (newQuery.trim()) {
+    isLoading.value = true
+    try {
+      // Simular llamada API
+      await new Promise(r => setTimeout(r, 300))
+      results.value = [`Resultado 1: ${newQuery}`, `Resultado 2: ${newQuery}`]
+    } finally {
+      isLoading.value = false
+    }
+  } else {
+    results.value = []
+  }
+}, { immediate: true })
+</script>
+
+<template>
+  <div>
+    <input v-model="searchQuery" placeholder="Buscar..." />
+    <div v-if="isLoading">Cargando...</div>
+    <ul v-else>
+      <li v-for="result in results" :key="result">
+        {{ result }}
+      </li>
+    </ul>
+  </div>
+</template>
+```

@@ -1,0 +1,226 @@
+---
+title: Reactividad en Vue 3
+description: Aprende el sistema de reactividad de Vue 3 y sus diferentes APIs con la Composition API
+---
+
+La reactividad es el corazón de Vue 3. Con la Composition API, tenemos acceso a un sistema de reactividad más potente y flexible que nos permite controlar exactamente cómo queremos que nuestros datos sean reactivos.
+
+<Aside type="tip">
+La reactividad en Vue 3 está construida sobre Proxy de JavaScript, lo que permite un mejor rendimiento y una experiencia de desarrollo más predecible.
+</Aside>
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## ref() y reactive()
+
+`ref()` y `reactive()` son las dos funciones principales para crear datos reactivos en Vue 3. La elección entre una u otra depende de tu caso de uso:
+
+- `ref()`: Ideal para valores primitivos (números, strings, booleanos) y cuando necesitas que un objeto completo sea reemplazable.
+- `reactive()`: Perfecto para objetos complejos cuando necesitas mutaciones profundas y no planeas reemplazar el objeto completo.
+
+<Tabs>
+  <TabItem label="ref()">
+    ```js
+    import { ref } from 'vue'
+
+    const count = ref(0)
+    const message = ref('Hola')
+    const user = ref({ name: 'Juan' })
+
+    // Acceso y modificación
+    console.log(count.value) // 0
+    count.value++
+    console.log(user.value.name) // 'Juan'
+    ```
+  </TabItem>
+  <TabItem label="reactive()">
+    ```js
+    import { reactive } from 'vue'
+
+    const state = reactive({
+      count: 0,
+      message: 'Hola',
+      user: { name: 'Juan' }
+    })
+
+    // Acceso y modificación directo
+    console.log(state.count) // 0
+    state.count++
+    console.log(state.user.name) // 'Juan'
+    ```
+  </TabItem>
+</Tabs>
+
+## toRef() y toRefs()
+
+Estas utilidades son esenciales cuando trabajamos con props o cuando necesitamos mantener la reactividad al desestructurar propiedades de objetos reactivos:
+
+- `toRef()`: Crea una referencia reactiva a una propiedad específica de un objeto reactivo
+- `toRefs()`: Convierte un objeto reactivo en un objeto plano donde todas las propiedades son referencias reactivas
+
+<Aside type="tip">
+Estas utilidades son útiles cuando necesitas mantener la reactividad al desestructurar propiedades.
+</Aside>
+
+```js
+import { reactive, toRef, toRefs } from 'vue'
+
+const state = reactive({
+  count: 0,
+  message: 'Hola'
+})
+
+// toRef - una propiedad
+const count = toRef(state, 'count')
+
+// toRefs - todas las propiedades
+const { message } = toRefs(state)
+
+count.value++ // actualiza state.count
+message.value = 'Adiós' // actualiza state.message
+```
+
+## shallowRef() y shallowReactive()
+
+Estas versiones "superficiales" de reactividad son útiles para optimizar el rendimiento cuando trabajamos con objetos grandes o cuando solo necesitamos reactividad en el primer nivel:
+
+- `shallowRef()`: Solo el valor `.value` es reactivo, perfecto para objetos grandes que no necesitan reactividad profunda
+- `shallowReactive()`: Solo las propiedades de primer nivel son reactivas, ideal para estructuras de datos planas
+
+<Aside type="caution">
+Estas versiones "shallow" solo hacen reactivo el primer nivel del objeto.
+</Aside>
+
+```js
+import { shallowRef, shallowReactive } from 'vue'
+
+// Solo el valor .value es reactivo
+const state = shallowRef({ count: 0 })
+
+// Solo las propiedades de primer nivel son reactivas
+const user = shallowReactive({
+  profile: { name: 'Juan' }
+})
+```
+
+## readonly() y markRaw()
+
+Estas funciones nos ayudan a controlar la mutabilidad de nuestros datos reactivos:
+
+- `readonly()`: Crea una versión inmutable de un objeto reactivo, útil para props o estado que no debe modificarse
+- `markRaw()`: Marca un objeto para que nunca sea convertido en reactivo, perfecto para objetos que no necesitan seguimiento
+
+```js
+import { reactive, readonly, markRaw } from 'vue'
+
+// Crear objeto inmutable
+const original = reactive({ count: 0 })
+const copy = readonly(original)
+
+// Objeto no reactivo
+const rawObject = markRaw({
+  nested: { foo: 'bar' }
+})
+```
+
+## Utilidades de Verificación
+
+Estas funciones son esenciales para depurar y verificar el estado de nuestros datos reactivos:
+
+- `isRef()`: Verifica si un valor es una referencia reactiva
+- `isReactive()`: Comprueba si un objeto es reactivo
+- `isReadonly()`: Determina si un objeto es inmutable
+- `unref()`: Obtiene el valor interno de una referencia
+
+```js
+import { isRef, isReactive, isReadonly, unref } from 'vue'
+
+const num = ref(0)
+const obj = reactive({})
+
+console.log(isRef(num)) // true
+console.log(isReactive(obj)) // true
+console.log(unref(num)) // obtiene el valor sin .value
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa `ref()` para valores primitivos
+- Usa `reactive()` para objetos complejos
+- Evita anidar demasiado los objetos reactivos
+- Usa `readonly()` para prevenir mutaciones
+- Considera `shallowRef()` para objetos grandes que no necesitan reactividad profunda
+</Aside>
+
+## Ejemplos Prácticos
+
+Aquí hay algunos ejemplos comunes de cómo usar la reactividad en aplicaciones reales:
+
+- El ejemplo del formulario muestra cómo usar `reactive()` para manejar múltiples campos relacionados
+- La lista de tareas demuestra cómo usar `ref()` para datos individuales y arrays
+
+<Tabs>
+  <TabItem label="Formulario">
+    ```vue
+    <script setup>
+    import { reactive } from 'vue'
+
+    const form = reactive({
+      username: '',
+      email: '',
+      password: ''
+    })
+
+    const submit = () => {
+      console.log('Form:', form)
+    }
+    </script>
+
+    <template>
+      <form @submit.prevent="submit">
+        <input v-model="form.username" />
+        <input v-model="form.email" type="email" />
+        <input v-model="form.password" type="password" />
+        <button type="submit">Enviar</button>
+      </form>
+    </template>
+    ```
+  </TabItem>
+  <TabItem label="Lista de Tareas">
+    ```vue
+    <script setup>
+    import { ref } from 'vue'
+
+    const newTask = ref('')
+    const tasks = ref([])
+
+    const addTask = () => {
+      if (newTask.value.trim()) {
+        tasks.value.push({
+          id: Date.now(),
+          text: newTask.value,
+          done: false
+        })
+        newTask.value = ''
+      }
+    }
+    </script>
+
+    <template>
+      <div>
+        <input v-model="newTask" @keyup.enter="addTask" />
+        <ul>
+          <li v-for="task in tasks" :key="task.id">
+            <input type="checkbox" v-model="task.done" />
+            {{ task.text }}
+          </li>
+        </ul>
+      </div>
+    </template>
+    ```
+  </TabItem>
+</Tabs>

@@ -1,0 +1,478 @@
+---
+title: Comunicación entre Componentes en Vue 3
+description: Aprende los diferentes patrones de comunicación entre componentes en Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Props y Eventos
+
+```vue
+<!-- ParentComponent.vue -->
+<script setup lang="ts">
+import { ref } from 'vue'
+import ChildComponent from './ChildComponent.vue'
+
+const message = ref('Hola desde padre')
+const count = ref(0)
+
+const handleIncrement = (amount: number) => {
+  count.value += amount
+}
+</script>
+
+<template>
+  <ChildComponent
+    :message="message"
+    :count="count"
+    @increment="handleIncrement"
+  />
+</template>
+
+<!-- ChildComponent.vue -->
+<script setup lang="ts">
+interface Props {
+  message: string
+  count: number
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'increment', amount: number): void
+}>()
+</script>
+
+<template>
+  <div>
+    <p>{{ message }}</p>
+    <p>Count: {{ count }}</p>
+    <button @click="emit('increment', 1)">
+      Incrementar
+    </button>
+  </div>
+</template>
+```
+
+## Provide/Inject
+
+```ts
+// composables/useTheme.ts
+import { provide, inject, ref } from 'vue'
+
+const themeSymbol = Symbol('theme')
+
+export interface ThemeContext {
+  theme: Ref<'light' | 'dark'>
+  toggleTheme: () => void
+}
+
+export function provideTheme() {
+  const theme = ref<'light' | 'dark'>('light')
+
+  const toggleTheme = () => {
+    theme.value = theme.value === 'light' ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', theme.value)
+  }
+
+  provide(themeSymbol, {
+    theme,
+    toggleTheme
+  })
+}
+
+export function useTheme(): ThemeContext {
+  const theme = inject<ThemeContext>(themeSymbol)
+  
+  if (!theme) {
+    throw new Error('useTheme must be used within a theme provider')
+  }
+  
+  return theme
+}
+
+// App.vue
+<script setup>
+import { provideTheme } from './composables/useTheme'
+
+provideTheme()
+</script>
+
+// DeepChildComponent.vue
+<script setup>
+import { useTheme } from './composables/useTheme'
+
+const { theme, toggleTheme } = useTheme()
+</script>
+
+<template>
+  <button @click="toggleTheme">
+    Cambiar a tema {{ theme === 'light' ? 'oscuro' : 'claro' }}
+  </button>
+</template>
+```
+
+## Event Bus con Mitt
+
+```ts
+// eventBus.ts
+import mitt from 'mitt'
+
+type Events = {
+  'notification:show': { message: string; type: 'success' | 'error' }
+  'notification:clear': void
+}
+
+export const eventBus = mitt<Events>()
+
+// composables/useNotifications.ts
+import { onUnmounted } from 'vue'
+import { eventBus } from '@/eventBus'
+
+export function useNotifications() {
+  const showNotification = (
+    message: string,
+    type: 'success' | 'error' = 'success'
+  ) => {
+    eventBus.emit('notification:show', { message, type })
+  }
+
+  const clearNotification = () => {
+    eventBus.emit('notification:clear')
+  }
+
+  return {
+    showNotification,
+    clearNotification
+  }
+}
+
+// components/NotificationManager.vue
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import { eventBus } from '@/eventBus'
+
+interface Notification {
+  id: number
+  message: string
+  type: 'success' | 'error'
+}
+
+const notifications = ref<Notification[]>([])
+
+const addNotification = ({ message, type }: { 
+  message: string
+  type: 'success' | 'error'
+}) => {
+  const id = Date.now()
+  notifications.value.push({ id, message, type })
+  
+  setTimeout(() => {
+    removeNotification(id)
+  }, 5000)
+}
+
+const removeNotification = (id: number) => {
+  notifications.value = notifications.value.filter(n => n.id !== id)
+}
+
+onMounted(() => {
+  eventBus.on('notification:show', addNotification)
+  eventBus.on('notification:clear', () => {
+    notifications.value = []
+  })
+})
+
+onUnmounted(() => {
+  eventBus.off('notification:show', addNotification)
+  eventBus.all.clear()
+})
+</script>
+
+<template>
+  <TransitionGroup
+    name="notification"
+    tag="div"
+    class="notifications"
+  >
+    <div
+      v-for="notification in notifications"
+      :key="notification.id"
+      :class="['notification', notification.type]"
+    >
+      {{ notification.message }}
+    </div>
+  </TransitionGroup>
+</template>
+```
+
+## Composables para Estado Compartido
+
+```ts
+// composables/useSharedState.ts
+import { ref } from 'vue'
+
+const count = ref(0)
+const users = ref<string[]>([])
+
+export function useSharedState() {
+  const increment = () => count.value++
+  const decrement = () => count.value--
+  
+  const addUser = (name: string) => {
+    users.value.push(name)
+  }
+  
+  const removeUser = (name: string) => {
+    users.value = users.value.filter(user => user !== name)
+  }
+
+  return {
+    count,
+    users,
+    increment,
+    decrement,
+    addUser,
+    removeUser
+  }
+}
+
+// ComponentA.vue
+<script setup>
+import { useSharedState } from '@/composables/useSharedState'
+
+const { count, increment } = useSharedState()
+</script>
+
+// ComponentB.vue
+<script setup>
+import { useSharedState } from '@/composables/useSharedState'
+
+const { count, decrement } = useSharedState()
+</script>
+```
+
+## Slots y Scoped Slots
+
+```vue
+<!-- DataTable.vue -->
+<script setup lang="ts">
+interface Props<T> {
+  items: T[]
+  columns: {
+    key: keyof T
+    label: string
+  }[]
+}
+
+const props = defineProps<Props<any>>()
+</script>
+
+<template>
+  <table>
+    <thead>
+      <tr>
+        <th
+          v-for="column in columns"
+          :key="column.key"
+        >
+          <slot
+            :name="'header-' + column.key"
+            :column="column"
+          >
+            {{ column.label }}
+          </slot>
+        </th>
+        <th v-if="$slots.actions">
+          Acciones
+        </th>
+      </tr>
+    </thead>
+    
+    <tbody>
+      <tr v-for="item in items" :key="item.id">
+        <td
+          v-for="column in columns"
+          :key="column.key"
+        >
+          <slot
+            :name="'cell-' + column.key"
+            :item="item"
+            :value="item[column.key]"
+          >
+            {{ item[column.key] }}
+          </slot>
+        </td>
+        <td v-if="$slots.actions">
+          <slot
+            name="actions"
+            :item="item"
+          />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</template>
+
+<!-- Uso -->
+<script setup>
+import DataTable from './DataTable.vue'
+
+const users = [
+  { id: 1, name: 'Juan', role: 'Admin' },
+  { id: 2, name: 'María', role: 'User' }
+]
+
+const columns = [
+  { key: 'name', label: 'Nombre' },
+  { key: 'role', label: 'Rol' }
+]
+
+const deleteUser = (id: number) => {
+  // Lógica de eliminación
+}
+</script>
+
+<template>
+  <DataTable
+    :items="users"
+    :columns="columns"
+  >
+    <template #cell-role="{ value }">
+      <span :class="value.toLowerCase()">
+        {{ value }}
+      </span>
+    </template>
+    
+    <template #actions="{ item }">
+      <button @click="deleteUser(item.id)">
+        Eliminar
+      </button>
+    </template>
+  </DataTable>
+</template>
+```
+
+## Composición de Componentes
+
+```vue
+<!-- Form.vue -->
+<script setup lang="ts">
+import { provide, ref } from 'vue'
+
+const formSymbol = Symbol('form')
+
+const values = ref({})
+const errors = ref({})
+
+provide(formSymbol, {
+  values,
+  errors,
+  register: (name: string, value: any) => {
+    values.value[name] = value
+  },
+  setError: (name: string, error: string) => {
+    errors.value[name] = error
+  }
+})
+</script>
+
+<template>
+  <form @submit.prevent="$emit('submit', values)">
+    <slot />
+  </form>
+</template>
+
+<!-- FormField.vue -->
+<script setup lang="ts">
+import { inject, onMounted } from 'vue'
+
+interface Props {
+  name: string
+  label?: string
+  modelValue: any
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: any): void
+}>()
+
+const form = inject(formSymbol)
+
+onMounted(() => {
+  if (form) {
+    form.register(props.name, props.modelValue)
+  }
+})
+</script>
+
+<template>
+  <div class="form-field">
+    <label v-if="label">{{ label }}</label>
+    <slot
+      :value="modelValue"
+      :error="form?.errors[name]"
+      :update="(value: any) => emit('update:modelValue', value)"
+    />
+    <span v-if="form?.errors[name]" class="error">
+      {{ form.errors[name] }}
+    </span>
+  </div>
+</template>
+
+<!-- Uso -->
+<template>
+  <Form @submit="handleSubmit">
+    <FormField
+      name="email"
+      label="Email"
+      v-model="formData.email"
+    >
+      <template #default="{ value, error, update }">
+        <input
+          type="email"
+          :value="value"
+          @input="update(($event.target as HTMLInputElement).value)"
+          :class="{ error }"
+        />
+      </template>
+    </FormField>
+  </Form>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa props para datos descendentes
+- Usa eventos para comunicación ascendente
+- Usa provide/inject para estado global
+- Considera Pinia para estado complejo
+- Usa slots para composición flexible
+- Mantén la comunicación simple y directa
+</Aside>
+
+## Patrones de Comunicación
+
+1. **Props Down, Events Up**
+   - Datos fluyen hacia abajo vía props
+   - Eventos fluyen hacia arriba vía emit
+
+2. **Provide/Inject**
+   - Estado compartido en árbol de componentes
+   - Útil para temas, autenticación, etc.
+
+3. **Event Bus**
+   - Comunicación entre componentes no relacionados
+   - Usar con moderación, preferir Pinia
+
+4. **State Management**
+   - Pinia para estado global complejo
+   - Composables para estado compartido simple
+
+5. **Slots**
+   - Composición de componentes flexible
+   - Personalización de contenido

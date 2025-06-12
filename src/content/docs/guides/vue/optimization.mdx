@@ -1,0 +1,333 @@
+---
+title: Optimización en Vue 3
+description: Aprende las mejores prácticas de optimización y rendimiento en Vue 3 con la Composition API
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+La optimización en Vue 3 es crucial para crear aplicaciones rápidas y eficientes. La Composition API nos brinda herramientas poderosas para optimizar nuestro código y mejorar el rendimiento.
+
+## Optimización de Componentes
+
+La optimización de componentes es fundamental para mejorar el rendimiento de nuestra aplicación. Vue 3 nos proporciona herramientas poderosas como `defineAsyncComponent` y `Suspense` que nos permiten cargar componentes de forma diferida y manejar sus estados de carga de manera elegante.
+
+### defineAsyncComponent
+
+`defineAsyncComponent` es una utilidad que nos permite cargar componentes de forma lazy. Esto es especialmente útil para componentes grandes o que no son necesarios inmediatamente al cargar la página. Podemos usarlo de forma básica o con opciones avanzadas para manejar estados de carga y errores.
+
+Ideal para componentes grandes que no necesitan cargarse inmediatamente:
+
+```ts
+import { defineAsyncComponent } from 'vue'
+
+// Componente básico async
+const AsyncModal = defineAsyncComponent(() =>
+  import('./components/Modal.vue')
+)
+
+// Con opciones avanzadas
+const AsyncModalWithOptions = defineAsyncComponent({
+  loader: () => import('./components/Modal.vue'),
+  loadingComponent: LoadingSpinner,
+  errorComponent: ErrorComponent,
+  delay: 200,
+  timeout: 3000
+})
+```
+
+### Suspense
+
+`Suspense` es un componente incorporado en Vue 3 que nos permite manejar estados de carga para componentes asíncronos. Nos permite mostrar contenido de fallback mientras el componente principal se está cargando, mejorando la experiencia del usuario.
+
+Maneja estados de carga para componentes asíncronos:
+
+```vue
+<template>
+  <Suspense>
+    <template #default>
+      <AsyncComponent />
+    </template>
+    <template #fallback>
+      <LoadingSpinner />
+    </template>
+  </Suspense>
+</template>
+```
+
+## Optimización de Renderizado
+
+El renderizado eficiente es crucial para el rendimiento de nuestra aplicación. Vue 3 ofrece varias técnicas para optimizar cómo y cuándo se renderizan nuestros componentes, ayudando a reducir el trabajo innecesario del navegador.
+
+### shallowRef y shallowReactive
+
+Estas versiones "superficiales" de reactividad son herramientas poderosas para optimizar el rendimiento cuando trabajamos con objetos grandes. Al hacer reactivo solo el primer nivel, reducimos significativamente la sobrecarga de la reactividad.
+
+Usa referencias superficiales para grandes objetos que no necesitan reactividad profunda:
+
+```ts
+import { shallowRef, shallowReactive } from 'vue'
+
+// Solo el primer nivel es reactivo
+const state = shallowReactive({
+  user: {
+    profile: { name: 'Juan' }
+  }
+})
+
+// Solo .value es reactivo
+const bigData = shallowRef({
+  items: generateLargeDataset()
+})
+```
+
+### v-once y v-memo
+
+Estas directivas son herramientas esenciales para optimizar el renderizado. `v-once` es perfecto para contenido que nunca cambiará, mientras que `v-memo` nos permite controlar exactamente cuándo debe actualizarse un componente.
+
+Optimiza el renderizado de contenido estático o con actualizaciones controladas:
+
+```vue
+<template>
+  <!-- Contenido que nunca cambia -->
+  <div v-once>
+    <ExpensiveComponent :data="staticData" />
+  </div>
+
+  <!-- Memoriza basado en dependencias -->
+  <div v-memo="[item.id]">
+    <ComplexItem :item="item" />
+  </div>
+</template>
+```
+
+## Optimización de Computadas
+
+Las propiedades computadas son una parte fundamental de Vue 3, y optimizarlas correctamente puede tener un gran impacto en el rendimiento. Es importante entender cómo funcionan el caché y los getters/setters para aprovecharlas al máximo.
+
+### Computed con Getter/Setter
+
+```ts
+import { computed } from 'vue'
+
+const firstName = ref('Juan')
+const lastName = ref('Pérez')
+
+const fullName = computed({
+  get: () => `${firstName.value} ${lastName.value}`,
+  set: (newValue) => {
+    [firstName.value, lastName.value] = newValue.split(' ')
+  }
+})
+```
+
+### Computed con Cache
+
+```ts
+import { computed } from 'vue'
+
+// Resultado en caché hasta que las dependencias cambien
+const expensiveComputed = computed(() => {
+  return someExpensiveOperation(data.value)
+})
+```
+
+## Optimización de Watchers
+
+Los watchers son poderosos pero pueden impactar el rendimiento si no se usan correctamente. Es importante entender las diferentes opciones disponibles y cómo implementar limpieza adecuada para evitar memory leaks.
+
+### Watch con Control Fino
+
+```ts
+import { watch } from 'vue'
+
+// Observar solo cambios específicos
+watch(
+  () => user.value.id,
+  (newId) => {
+    // Solo se ejecuta cuando cambia el ID
+  }
+)
+
+// Observar múltiples fuentes
+watch(
+  [firstName, lastName],
+  ([newFirst, newLast], [oldFirst, oldLast]) => {
+    // Se ejecuta cuando cualquiera cambia
+  }
+)
+```
+
+### watchEffect Optimizado
+
+```ts
+import { watchEffect } from 'vue'
+
+// Limpieza automática
+watchEffect((onCleanup) => {
+  const controller = new AbortController()
+  onCleanup(() => controller.abort())
+  
+  fetch(url.value, { signal: controller.signal })
+})
+```
+
+## Lazy Loading
+
+La carga diferida es una técnica esencial para mejorar el rendimiento inicial de nuestra aplicación. Vue 3 y Vue Router nos proporcionan herramientas integradas para implementar lazy loading tanto a nivel de rutas como de componentes.
+
+### Rutas
+
+```ts
+import { createRouter } from 'vue-router'
+
+const router = createRouter({
+  routes: [
+    {
+      path: '/dashboard',
+      component: () => import('./views/Dashboard.vue'),
+      children: [
+        {
+          path: 'analytics',
+          component: () => import('./views/Analytics.vue')
+        }
+      ]
+    }
+  ]
+})
+```
+
+### Componentes Dinámicos
+
+```vue
+<script setup>
+import { defineAsyncComponent, shallowRef } from 'vue'
+
+const tabs = {
+  profile: defineAsyncComponent(() => 
+    import('./tabs/Profile.vue')
+  ),
+  settings: defineAsyncComponent(() => 
+    import('./tabs/Settings.vue')
+  )
+}
+
+const currentTab = shallowRef('profile')
+</script>
+
+<template>
+  <component :is="tabs[currentTab]" />
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa `shallowRef` y `shallowReactive` para datos grandes
+- Implementa lazy loading para componentes pesados
+- Utiliza `v-memo` para listas con actualizaciones controladas
+- Optimiza las computadas con dependencias específicas
+- Limpia los watchers y efectos secundarios
+- Considera el uso de Web Workers para operaciones pesadas
+</Aside>
+
+## Virtual Scrolling
+
+El scroll virtual es una técnica avanzada que nos permite manejar grandes listas de manera eficiente. En lugar de renderizar todos los elementos, solo renderizamos los que son visibles en el viewport, mejorando significativamente el rendimiento.
+
+```vue
+<script setup>
+import { ref, computed } from 'vue'
+
+const items = ref(Array.from({ length: 10000 }))
+const itemHeight = 30
+const containerHeight = 400
+const scrollTop = ref(0)
+
+const visibleItems = computed(() => {
+  const start = Math.floor(scrollTop.value / itemHeight)
+  const count = Math.ceil(containerHeight / itemHeight)
+  return items.value.slice(start, start + count)
+})
+</script>
+
+<template>
+  <div
+    class="virtual-scroll"
+    @scroll="scrollTop = $event.target.scrollTop"
+  >
+    <div
+      class="scroll-content"
+      :style="{
+        height: `${items.length * itemHeight}px`,
+        position: 'relative'
+      }"
+    >
+      <div
+        v-for="(item, index) in visibleItems"
+        :key="index"
+        :style="{
+          position: 'absolute',
+          top: `${(Math.floor(scrollTop / itemHeight) + index) * itemHeight}px`,
+          height: `${itemHeight}px`
+        }"
+      >
+        {{ item }}
+      </div>
+    </div>
+  </div>
+</template>
+```
+
+## Web Workers
+
+Los Web Workers nos permiten ejecutar operaciones pesadas en un hilo separado, evitando bloquear el hilo principal. Esto es especialmente útil para cálculos complejos o procesamiento de datos que podrían afectar la experiencia del usuario.
+
+```ts
+// worker.ts
+const worker = new Worker(
+  new URL('./calculation.worker.ts', import.meta.url)
+)
+
+// Uso en componente
+const useWorker = () => {
+  const result = ref(null)
+  
+  const calculate = (data) => {
+    worker.postMessage(data)
+  }
+  
+  worker.onmessage = (event) => {
+    result.value = event.data
+  }
+  
+  return {
+    result,
+    calculate
+  }
+}
+```
+
+## Monitoreo de Rendimiento
+
+Monitorear el rendimiento de nuestra aplicación es crucial para identificar y resolver cuellos de botella. Vue 3 nos permite implementar métricas personalizadas para seguir el rendimiento de nuestros componentes y optimizarlos según sea necesario.
+
+```ts
+import { onMounted, onUpdated } from 'vue'
+
+// Componente con métricas de rendimiento
+const usePerformanceMonitoring = () => {
+  let startTime: number
+
+  onMounted(() => {
+    startTime = performance.now()
+    console.log('Tiempo de montaje:', performance.now() - startTime)
+  })
+
+  onUpdated(() => {
+    console.log('Tiempo de actualización:', performance.now() - startTime)
+  })
+}
+```

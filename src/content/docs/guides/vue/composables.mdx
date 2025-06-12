@@ -1,0 +1,315 @@
+---
+title: Composables en Vue 3
+description: Aprende a crear y usar composables para reutilizar lógica en Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## ¿Qué son los Composables?
+
+<Aside type="tip">
+Los composables son funciones que encapsulan y reutilizan lógica con estado en Vue 3. Son la forma recomendada de reutilizar lógica entre componentes.
+</Aside>
+
+## Ejemplos Básicos
+
+### useCounter
+```ts
+// composables/useCounter.ts
+import { ref, computed } from 'vue'
+
+export function useCounter(initialValue = 0) {
+  const count = ref(initialValue)
+  const double = computed(() => count.value * 2)
+
+  const increment = () => count.value++
+  const decrement = () => count.value--
+  const reset = () => count.value = initialValue
+
+  return {
+    count,
+    double,
+    increment,
+    decrement,
+    reset
+  }
+}
+
+// Uso en componente
+<script setup>
+import { useCounter } from '@/composables/useCounter'
+
+const { count, double, increment, decrement, reset } = useCounter(10)
+</script>
+```
+
+### useFetch
+```ts
+// composables/useFetch.ts
+import { ref, shallowRef } from 'vue'
+
+export function useFetch<T>() {
+  const data = shallowRef<T | null>(null)
+  const error = ref<Error | null>(null)
+  const loading = ref(false)
+
+  const execute = async (url: string, options?: RequestInit) => {
+    loading.value = true
+    data.value = null
+    error.value = null
+
+    try {
+      const response = await fetch(url, options)
+      if (!response.ok) throw new Error(response.statusText)
+      data.value = await response.json()
+    } catch (e) {
+      error.value = e as Error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return {
+    data,
+    error,
+    loading,
+    execute
+  }
+}
+
+// Uso en componente
+<script setup lang="ts">
+import { useFetch } from '@/composables/useFetch'
+
+interface User {
+  id: number
+  name: string
+}
+
+const { data, error, loading, execute } = useFetch<User[]>()
+
+// Cargar datos
+execute('https://api.example.com/users')
+</script>
+```
+
+## Composables Avanzados
+
+### useForm
+```ts
+// composables/useForm.ts
+import { reactive, computed } from 'vue'
+
+interface ValidationRule {
+  (value: any): boolean | string
+}
+
+interface FieldRules {
+  [key: string]: ValidationRule[]
+}
+
+interface FormOptions<T> {
+  initialValues: T
+  validationRules?: FieldRules
+  onSubmit?: (values: T) => Promise<void> | void
+}
+
+export function useForm<T extends object>({
+  initialValues,
+  validationRules = {},
+  onSubmit
+}: FormOptions<T>) {
+  const values = reactive({ ...initialValues }) as T
+  const errors = reactive<Record<keyof T, string>>({} as Record<keyof T, string>)
+  const touched = reactive<Record<keyof T, boolean>>({} as Record<keyof T, boolean>)
+
+  const validateField = (field: keyof T) => {
+    const rules = validationRules[field as string] || []
+    const value = values[field]
+    
+    for (const rule of rules) {
+      const result = rule(value)
+      if (result !== true) {
+        errors[field] = result as string
+        return false
+      }
+    }
+    
+    delete errors[field]
+    return true
+  }
+
+  const validate = () => {
+    let isValid = true
+    for (const field in validationRules) {
+      if (!validateField(field as keyof T)) {
+        isValid = false
+      }
+    }
+    return isValid
+  }
+
+  const handleSubmit = async (e: Event) => {
+    e.preventDefault()
+    if (validate() && onSubmit) {
+      await onSubmit(values)
+    }
+  }
+
+  const isValid = computed(() => Object.keys(errors).length === 0)
+
+  const resetForm = () => {
+    Object.assign(values, initialValues)
+    Object.keys(errors).forEach(key => delete errors[key])
+    Object.keys(touched).forEach(key => touched[key] = false)
+  }
+
+  return {
+    values,
+    errors,
+    touched,
+    isValid,
+    validateField,
+    validate,
+    handleSubmit,
+    resetForm
+  }
+}
+
+// Uso en componente
+<script setup lang="ts">
+import { useForm } from '@/composables/useForm'
+
+interface LoginForm {
+  email: string
+  password: string
+}
+
+const { 
+  values,
+  errors,
+  touched,
+  isValid,
+  handleSubmit
+} = useForm<LoginForm>({
+  initialValues: {
+    email: '',
+    password: ''
+  },
+  validationRules: {
+    email: [
+      v => !!v || 'Email es requerido',
+      v => /.+@.+\..+/.test(v) || 'Email debe ser válido'
+    ],
+    password: [
+      v => !!v || 'Contraseña es requerida',
+      v => v.length >= 6 || 'Mínimo 6 caracteres'
+    ]
+  },
+  onSubmit: async (values) => {
+    // Lógica de envío
+    console.log('Form submitted:', values)
+  }
+})
+</script>
+```
+
+### useLocalStorage
+```ts
+// composables/useLocalStorage.ts
+import { ref, watch } from 'vue'
+
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  // Intentar obtener el valor del localStorage
+  const storedValue = localStorage.getItem(key)
+  const value = ref<T>(
+    storedValue ? JSON.parse(storedValue) : initialValue
+  )
+
+  // Observar cambios y actualizar localStorage
+  watch(
+    value,
+    (newValue) => {
+      localStorage.setItem(key, JSON.stringify(newValue))
+    },
+    { deep: true }
+  )
+
+  return value
+}
+
+// Uso en componente
+<script setup>
+import { useLocalStorage } from '@/composables/useLocalStorage'
+
+const theme = useLocalStorage('theme', 'light')
+const settings = useLocalStorage('settings', {
+  notifications: true,
+  language: 'es'
+})
+</script>
+```
+
+## Organización de Composables
+
+```
+src/
+  composables/
+    core/
+      useForm.ts
+      useFetch.ts
+      useLocalStorage.ts
+    features/
+      useAuth.ts
+      useCart.ts
+      useNotifications.ts
+    ui/
+      useBreakpoints.ts
+      useScroll.ts
+      useIntersection.ts
+    index.ts
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Nombra los composables con el prefijo 'use'
+- Mantén la lógica enfocada y cohesiva
+- Usa TypeScript para mejor tipo de datos
+- Limpia efectos secundarios
+- Documenta parámetros y retornos
+- Considera la reusabilidad
+</Aside>
+
+## Composición de Composables
+
+```ts
+// composables/useAuthenticatedFetch.ts
+import { useFetch } from './useFetch'
+import { useAuth } from './useAuth'
+
+export function useAuthenticatedFetch<T>() {
+  const { token } = useAuth()
+  const { data, error, loading, execute } = useFetch<T>()
+
+  const authenticatedExecute = async (url: string, options: RequestInit = {}) => {
+    return execute(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${token.value}`
+      }
+    })
+  }
+
+  return {
+    data,
+    error,
+    loading,
+    execute: authenticatedExecute
+  }
+}
+```

@@ -1,0 +1,257 @@
+---
+title: Renderizado Condicional y Listas en Vue 3
+description: Aprende a usar directivas v-if, v-else, v-show y v-for en Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## v-if, v-else-if, v-else
+
+<Aside type="tip">
+`v-if` remueve o agrega elementos al DOM. Es mejor para condiciones que cambian poco.
+</Aside>
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const status = ref('loading')
+const error = ref(null)
+</script>
+
+<template>
+  <div>
+    <div v-if="status === 'loading'">
+      Cargando...
+    </div>
+    <div v-else-if="error">
+      Error: {{ error }}
+    </div>
+    <div v-else>
+      Contenido cargado
+    </div>
+  </div>
+</template>
+```
+
+## v-show
+
+<Aside type="tip">
+`v-show` solo alterna la visibilidad CSS. Es mejor para elementos que cambian frecuentemente.
+</Aside>
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const isVisible = ref(true)
+
+const toggle = () => {
+  isVisible.value = !isVisible.value
+}
+</script>
+
+<template>
+  <div>
+    <button @click="toggle">
+      {{ isVisible ? 'Ocultar' : 'Mostrar' }}
+    </button>
+    
+    <div v-show="isVisible">
+      Este contenido se alterna con display: none
+    </div>
+  </div>
+</template>
+```
+
+## v-for y key
+
+### Iteración Básica
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const items = ref([
+  { id: 1, text: 'Item 1' },
+  { id: 2, text: 'Item 2' },
+  { id: 3, text: 'Item 3' }
+])
+</script>
+
+<template>
+  <ul>
+    <li v-for="item in items" :key="item.id">
+      {{ item.text }}
+    </li>
+  </ul>
+</template>
+```
+
+### Acceso al Índice
+```vue
+<template>
+  <ul>
+    <li v-for="(item, index) in items" :key="item.id">
+      {{ index + 1 }}. {{ item.text }}
+    </li>
+  </ul>
+</template>
+```
+
+### Iteración de Objetos
+```vue
+<script setup>
+const user = {
+  name: 'Juan',
+  age: 30,
+  city: 'Madrid'
+}
+</script>
+
+<template>
+  <ul>
+    <li v-for="(value, key) in user" :key="key">
+      {{ key }}: {{ value }}
+    </li>
+  </ul>
+</template>
+```
+
+## Ejemplos Prácticos
+
+### Lista con Filtros y Ordenamiento
+```vue
+<script setup>
+import { ref, computed } from 'vue'
+
+interface Task {
+  id: number
+  title: string
+  completed: boolean
+  priority: 'high' | 'medium' | 'low'
+}
+
+const tasks = ref<Task[]>([
+  { id: 1, title: 'Tarea 1', completed: false, priority: 'high' },
+  { id: 2, title: 'Tarea 2', completed: true, priority: 'low' },
+  { id: 3, title: 'Tarea 3', completed: false, priority: 'medium' }
+])
+
+const filter = ref<'all' | 'active' | 'completed'>('all')
+const sortBy = ref<'priority' | 'title'>('priority')
+
+const filteredTasks = computed(() => {
+  return tasks.value.filter(task => {
+    if (filter.value === 'active') return !task.completed
+    if (filter.value === 'completed') return task.completed
+    return true
+  }).sort((a, b) => {
+    if (sortBy.value === 'priority') {
+      const priority = { high: 3, medium: 2, low: 1 }
+      return priority[b.priority] - priority[a.priority]
+    }
+    return a.title.localeCompare(b.title)
+  })
+})
+</script>
+
+<template>
+  <div>
+    <div class="filters">
+      <select v-model="filter">
+        <option value="all">Todas</option>
+        <option value="active">Activas</option>
+        <option value="completed">Completadas</option>
+      </select>
+
+      <select v-model="sortBy">
+        <option value="priority">Prioridad</option>
+        <option value="title">Título</option>
+      </select>
+    </div>
+
+    <ul>
+      <li
+        v-for="task in filteredTasks"
+        :key="task.id"
+        :class="{
+          completed: task.completed,
+          ['priority-' + task.priority]: true
+        }"
+      >
+        <input
+          type="checkbox"
+          v-model="task.completed"
+        />
+        {{ task.title }}
+        <span class="priority">{{ task.priority }}</span>
+      </li>
+    </ul>
+  </div>
+</template>
+```
+
+### Grid Dinámico
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const gridSize = ref(3)
+const cells = computed(() => {
+  return Array.from({ length: gridSize.value * gridSize.value })
+})
+</script>
+
+<template>
+  <div
+    class="grid"
+    :style="{
+      display: 'grid',
+      gridTemplateColumns: `repeat(${gridSize}, 1fr)`
+    }"
+  >
+    <div
+      v-for="(_, index) in cells"
+      :key="index"
+      class="cell"
+    >
+      Celda {{ index + 1 }}
+    </div>
+  </div>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Siempre usa `:key` con `v-for`
+- Usa `v-show` para alternar visibilidad frecuente
+- Usa `v-if` para condiciones que cambian poco
+- Evita `v-if` con `v-for` en el mismo elemento
+- Considera computadas para filtrar/ordenar listas
+- Mantén las claves únicas y estables
+</Aside>
+
+## Uso de key
+
+<Aside type="caution">
+La directiva `key` es crucial para el rendimiento y comportamiento correcto de las listas.
+</Aside>
+
+```vue
+<script setup>
+const users = ref([
+  { id: 'a', name: 'Alice' },
+  { id: 'b', name: 'Bob' },
+  { id: 'c', name: 'Carol' }
+])
+
+// ❌ Mal: usando índice como key
+<div v-for="(user, index) in users" :key="index">
+
+// ✅ Bien: usando ID único como key
+<div v-for="user in users" :key="user.id">
+```

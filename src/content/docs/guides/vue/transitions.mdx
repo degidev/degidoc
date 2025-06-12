@@ -1,0 +1,415 @@
+---
+title: Transiciones y Animaciones en Vue 3
+description: Aprende a crear transiciones y animaciones fluidas en Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Transiciones Básicas
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const show = ref(false)
+</script>
+
+<template>
+  <button @click="show = !show">
+    Toggle
+  </button>
+
+  <Transition name="fade">
+    <div v-if="show" class="modal">
+      Contenido
+    </div>
+  </Transition>
+</template>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
+```
+
+## Transiciones con Clases Personalizadas
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const show = ref(false)
+</script>
+
+<template>
+  <Transition
+    enter-active-class="animate__animated animate__fadeIn"
+    leave-active-class="animate__animated animate__fadeOut"
+  >
+    <div v-if="show" class="notification">
+      Notificación
+    </div>
+  </Transition>
+</template>
+
+<style>
+/* Requiere animate.css */
+@import 'animate.css';
+
+.notification {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem;
+  background: #4CAF50;
+  color: white;
+  border-radius: 0.5rem;
+}
+</style>
+```
+
+## Transiciones entre Elementos
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const activeTab = ref('tab1')
+</script>
+
+<template>
+  <div class="tabs">
+    <button 
+      v-for="tab in ['tab1', 'tab2', 'tab3']"
+      :key="tab"
+      @click="activeTab = tab"
+      :class="{ active: activeTab === tab }"
+    >
+      {{ tab }}
+    </button>
+
+    <Transition name="slide" mode="out-in">
+      <div :key="activeTab" class="tab-content">
+        Contenido de {{ activeTab }}
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<style>
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.slide-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+</style>
+```
+
+## Transiciones de Lista
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+interface Todo {
+  id: number
+  text: string
+}
+
+const todos = ref<Todo[]>([
+  { id: 1, text: 'Tarea 1' },
+  { id: 2, text: 'Tarea 2' }
+])
+
+const newTodo = ref('')
+
+const addTodo = () => {
+  if (!newTodo.value) return
+  todos.value.push({
+    id: Date.now(),
+    text: newTodo.value
+  })
+  newTodo.value = ''
+}
+
+const removeTodo = (id: number) => {
+  todos.value = todos.value.filter(todo => todo.id !== id)
+}
+</script>
+
+<template>
+  <div>
+    <form @submit.prevent="addTodo">
+      <input v-model="newTodo" />
+      <button type="submit">Agregar</button>
+    </form>
+
+    <TransitionGroup
+      name="list"
+      tag="ul"
+      class="todo-list"
+    >
+      <li
+        v-for="todo in todos"
+        :key="todo.id"
+        class="todo-item"
+      >
+        {{ todo.text }}
+        <button @click="removeTodo(todo.id)">
+          ×
+        </button>
+      </li>
+    </TransitionGroup>
+  </div>
+</template>
+
+<style>
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s ease;
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.list-move {
+  transition: transform 0.5s ease;
+}
+</style>
+```
+
+## Transiciones con JavaScript
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import gsap from 'gsap'
+
+const show = ref(false)
+
+const onBeforeEnter = (el: Element) => {
+  gsap.set(el, {
+    scaleX: 0.25,
+    scaleY: 0.25,
+    opacity: 1
+  })
+}
+
+const onEnter = (el: Element, done: () => void) => {
+  gsap.to(el, {
+    duration: 1,
+    scaleX: 1,
+    scaleY: 1,
+    opacity: 1,
+    ease: 'elastic.inOut(2.5, 1)',
+    onComplete: done
+  })
+}
+
+const onLeave = (el: Element, done: () => void) => {
+  gsap.to(el, {
+    duration: 0.7,
+    scaleX: 1,
+    scaleY: 1,
+    x: 300,
+    ease: 'elastic.inOut(2.5, 1)'
+  })
+  gsap.to(el, {
+    duration: 0.2,
+    delay: 0.5,
+    opacity: 0,
+    onComplete: done
+  })
+}
+</script>
+
+<template>
+  <button @click="show = !show">Toggle</button>
+  
+  <Transition
+    @before-enter="onBeforeEnter"
+    @enter="onEnter"
+    @leave="onLeave"
+    :css="false"
+  >
+    <div v-if="show" class="gsap-box"></div>
+  </Transition>
+</template>
+```
+
+## Transiciones de Estado
+
+```vue
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import gsap from 'gsap'
+
+const number = ref(0)
+const tweened = ref(0)
+
+const animatedNumber = computed(() => {
+  return tweened.value.toFixed(0)
+})
+
+const animate = () => {
+  gsap.to(tweened, {
+    duration: 0.5,
+    value: number.value
+  })
+}
+
+const increment = () => {
+  number.value += Math.floor(Math.random() * 100)
+  animate()
+}
+</script>
+
+<template>
+  <div>
+    <h1>{{ animatedNumber }}</h1>
+    <button @click="increment">
+      Incrementar
+    </button>
+  </div>
+</template>
+```
+
+## Composables para Animaciones
+
+```ts
+// composables/useTransition.ts
+import { ref, watch } from 'vue'
+import gsap from 'gsap'
+
+interface TransitionOptions {
+  duration?: number
+  ease?: string
+  delay?: number
+}
+
+export function useTransition<T extends number | { [key: string]: number }>(
+  source: Ref<T>,
+  options: TransitionOptions = {}
+) {
+  const tweened = ref<T>(source.value)
+
+  watch(
+    source,
+    (newValue) => {
+      gsap.to(tweened.value, {
+        duration: options.duration || 0.5,
+        ease: options.ease || 'power2.out',
+        delay: options.delay || 0,
+        ...newValue
+      })
+    },
+    { deep: true }
+  )
+
+  return tweened
+}
+
+// Uso
+const price = ref(0)
+const animatedPrice = useTransition(price, {
+  duration: 0.8,
+  ease: 'elastic.out(1, 0.5)'
+})
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa transiciones CSS para animaciones simples
+- Considera GSAP para animaciones complejas
+- Optimiza el rendimiento usando transform
+- Mantén las animaciones sutiles y rápidas
+- Respeta las preferencias de reducción de movimiento
+- Usa modo out-in para transiciones más limpias
+</Aside>
+
+## Transiciones Responsivas
+
+```vue
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useWindowSize } from '@vueuse/core'
+
+const { width } = useWindowSize()
+const show = ref(false)
+
+const transitionName = computed(() => {
+  return width.value > 768 ? 'slide' : 'fade'
+})
+</script>
+
+<template>
+  <Transition :name="transitionName">
+    <div v-if="show" class="modal">
+      Contenido
+    </div>
+  </Transition>
+</template>
+
+<style>
+/* Transición para móvil */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Transición para desktop */
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-enter-from {
+  transform: translateX(100%);
+}
+
+.slide-leave-to {
+  transform: translateX(-100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active,
+  .fade-leave-active,
+  .slide-enter-active,
+  .slide-leave-active {
+    transition: none;
+  }
+}
+</style>
+```

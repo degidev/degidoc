@@ -1,0 +1,356 @@
+---
+title: Componentes en Vue 3
+description: Aprende a crear y usar componentes en Vue 3 con Composition API
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Registro y Uso
+
+```vue
+<!-- Button.vue -->
+<script setup lang="ts">
+interface Props {
+  variant?: 'primary' | 'secondary'
+  size?: 'sm' | 'md' | 'lg'
+  disabled?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  variant: 'primary',
+  size: 'md',
+  disabled: false
+})
+
+const emit = defineEmits<{
+  (e: 'click', event: MouseEvent): void
+}>()
+</script>
+
+<template>
+  <button
+    :class="[
+      `btn-${variant}`,
+      `btn-${size}`,
+      { disabled }
+    ]"
+    :disabled="disabled"
+    @click="emit('click', $event)"
+  >
+    <slot></slot>
+  </button>
+</template>
+```
+
+## Props y Eventos
+
+```vue
+<!-- UserCard.vue -->
+<script setup lang="ts">
+interface User {
+  id: number
+  name: string
+  email: string
+  avatar?: string
+}
+
+interface Props {
+  user: User
+  isSelected?: boolean
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'select', userId: number): void
+  (e: 'delete', userId: number): void
+}>()
+</script>
+
+<template>
+  <div 
+    class="user-card"
+    :class="{ selected: isSelected }"
+  >
+    <img
+      v-if="user.avatar"
+      :src="user.avatar"
+      :alt="user.name"
+    />
+    <div class="user-info">
+      <h3>{{ user.name }}</h3>
+      <p>{{ user.email }}</p>
+    </div>
+    <div class="actions">
+      <button @click="emit('select', user.id)">
+        {{ isSelected ? 'Deseleccionar' : 'Seleccionar' }}
+      </button>
+      <button @click="emit('delete', user.id)">
+        Eliminar
+      </button>
+    </div>
+  </div>
+</template>
+```
+
+## Composición de Componentes
+
+```vue
+<!-- UserList.vue -->
+<script setup lang="ts">
+import { ref } from 'vue'
+import UserCard from './UserCard.vue'
+import Button from './Button.vue'
+
+interface User {
+  id: number
+  name: string
+  email: string
+  avatar?: string
+}
+
+const users = ref<User[]>([
+  { id: 1, name: 'Juan', email: 'juan@example.com' },
+  { id: 2, name: 'María', email: 'maria@example.com' }
+])
+
+const selectedUsers = ref<number[]>([])
+
+const handleSelect = (userId: number) => {
+  const index = selectedUsers.value.indexOf(userId)
+  if (index === -1) {
+    selectedUsers.value.push(userId)
+  } else {
+    selectedUsers.value.splice(index, 1)
+  }
+}
+
+const handleDelete = (userId: number) => {
+  users.value = users.value.filter(user => user.id !== userId)
+  handleSelect(userId) // Remover de seleccionados si existe
+}
+</script>
+
+<template>
+  <div class="user-list">
+    <header>
+      <h2>Usuarios ({{ users.length }})</h2>
+      <Button 
+        variant="secondary"
+        size="sm"
+        :disabled="!selectedUsers.length"
+      >
+        Seleccionados: {{ selectedUsers.length }}
+      </Button>
+    </header>
+
+    <div class="users-grid">
+      <UserCard
+        v-for="user in users"
+        :key="user.id"
+        :user="user"
+        :is-selected="selectedUsers.includes(user.id)"
+        @select="handleSelect"
+        @delete="handleDelete"
+      />
+    </div>
+  </div>
+</template>
+```
+
+## v-slot y Slots Nombrados
+
+```vue
+<!-- Modal.vue -->
+<script setup lang="ts">
+interface Props {
+  isOpen: boolean
+  title: string
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'close'): void
+}>()
+</script>
+
+<template>
+  <Teleport to="body">
+    <div
+      v-if="isOpen"
+      class="modal-overlay"
+      @click.self="emit('close')"
+    >
+      <div class="modal">
+        <header>
+          <slot name="header">
+            <h2>{{ title }}</h2>
+          </slot>
+          <button @click="emit('close')">×</button>
+        </header>
+
+        <div class="modal-content">
+          <slot></slot>
+        </div>
+
+        <footer>
+          <slot name="footer">
+            <Button @click="emit('close')">
+              Cerrar
+            </Button>
+          </slot>
+        </footer>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<!-- Uso del Modal -->
+<script setup>
+import { ref } from 'vue'
+import Modal from './Modal.vue'
+
+const isModalOpen = ref(false)
+</script>
+
+<template>
+  <Modal
+    :is-open="isModalOpen"
+    title="Mi Modal"
+    @close="isModalOpen = false"
+  >
+    <template #header>
+      <h2>Título Personalizado</h2>
+    </template>
+
+    <p>Contenido del modal</p>
+
+    <template #footer>
+      <Button variant="secondary" @click="isModalOpen = false">
+        Cancelar
+      </Button>
+      <Button @click="handleSave">
+        Guardar
+      </Button>
+    </template>
+  </Modal>
+</template>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Define tipos para props y eventos
+- Usa slots para contenido flexible
+- Mantén los componentes pequeños y enfocados
+- Implementa una jerarquía clara de componentes
+- Usa composables para lógica reutilizable
+- Documenta la API de tus componentes
+</Aside>
+
+## Ejemplo de Componente Reutilizable
+
+```vue
+<!-- DataTable.vue -->
+<script setup lang="ts">
+interface Column {
+  key: string
+  label: string
+  sortable?: boolean
+  formatter?: (value: any) => string
+}
+
+interface Props {
+  columns: Column[]
+  data: any[]
+  sortable?: boolean
+  selectable?: boolean
+  loading?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  sortable: false,
+  selectable: false,
+  loading: false
+})
+
+const emit = defineEmits<{
+  (e: 'sort', key: string): void
+  (e: 'select', items: any[]): void
+}>()
+
+const selectedItems = ref<any[]>([])
+
+const toggleSelectAll = () => {
+  if (selectedItems.value.length === props.data.length) {
+    selectedItems.value = []
+  } else {
+    selectedItems.value = [...props.data]
+  }
+  emit('select', selectedItems.value)
+}
+
+const toggleSelectItem = (item: any) => {
+  const index = selectedItems.value.indexOf(item)
+  if (index === -1) {
+    selectedItems.value.push(item)
+  } else {
+    selectedItems.value.splice(index, 1)
+  }
+  emit('select', selectedItems.value)
+}
+</script>
+
+<template>
+  <div class="data-table">
+    <table>
+      <thead>
+        <tr>
+          <th v-if="selectable">
+            <input
+              type="checkbox"
+              :checked="selectedItems.length === data.length"
+              :indeterminate="selectedItems.length > 0 && selectedItems.length < data.length"
+              @change="toggleSelectAll"
+            />
+          </th>
+          <th
+            v-for="column in columns"
+            :key="column.key"
+            :class="{ sortable: sortable && column.sortable }"
+            @click="column.sortable && emit('sort', column.key)"
+          >
+            {{ column.label }}
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <template v-if="loading">
+          <tr>
+            <td :colspan="selectable ? columns.length + 1 : columns.length">
+              <div class="loading">Cargando...</div>
+            </td>
+          </tr>
+        </template>
+        <template v-else>
+          <tr v-for="item in data" :key="item.id">
+            <td v-if="selectable">
+              <input
+                type="checkbox"
+                :checked="selectedItems.includes(item)"
+                @change="toggleSelectItem(item)"
+              />
+            </td>
+            <td v-for="column in columns" :key="column.key">
+              {{ column.formatter ? column.formatter(item[column.key]) : item[column.key] }}
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+</template>
+```

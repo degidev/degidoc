@@ -1,0 +1,402 @@
+---
+title: Provide/Inject en Vue 3
+description: Aprende a usar Provide/Inject para compartir datos entre componentes en Vue 3 con la Composition API
+---
+
+Provide/Inject es un mecanismo poderoso en Vue 3 que permite compartir datos entre componentes sin importar qué tan profundo estén anidados. Con la Composition API, este sistema se vuelve más flexible y type-safe.
+
+## ¿Cuándo usar Provide/Inject?
+
+Provide/Inject es ideal para:
+
+- Compartir estado global o por sección de la aplicación
+- Inyectar servicios o configuraciones
+- Crear componentes que necesitan comunicarse a través de múltiples niveles
+- Implementar patrones de composición avanzados
+
+<Aside type="tip">
+Con la Composition API, podemos crear providers type-safe y reutilizables usando composables.
+</Aside>
+
+<Aside type="caution">
+Usa Provide/Inject con moderación. Para estado global complejo, considera usar Pinia.
+</Aside>
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Uso Básico
+
+```ts
+// composables/useTheme.ts
+import { provide, inject, ref } from 'vue'
+
+const themeSymbol = Symbol('theme')
+
+export interface ThemeContext {
+  theme: Ref<'light' | 'dark'>
+  toggleTheme: () => void
+}
+
+export function provideTheme() {
+  const theme = ref<'light' | 'dark'>('light')
+
+  const toggleTheme = () => {
+    theme.value = theme.value === 'light' ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', theme.value)
+  }
+
+  provide(themeSymbol, {
+    theme,
+    toggleTheme
+  })
+}
+
+export function useTheme(): ThemeContext {
+  const theme = inject<ThemeContext>(themeSymbol)
+  
+  if (!theme) {
+    throw new Error('useTheme debe usarse dentro de un proveedor de tema')
+  }
+  
+  return theme
+}
+
+// App.vue
+<script setup>
+import { provideTheme } from '@/composables/useTheme'
+
+provideTheme()
+</script>
+
+// ThemeToggle.vue
+<script setup>
+import { useTheme } from '@/composables/useTheme'
+
+const { theme, toggleTheme } = useTheme()
+</script>
+
+<template>
+  <button @click="toggleTheme">
+    {{ theme === 'light' ? '🌙' : '☀️' }}
+  </button>
+</template>
+```
+
+## Provide/Inject con TypeScript
+
+```ts
+// types/injection-keys.ts
+import type { InjectionKey } from 'vue'
+
+export interface UserInfo {
+  id: number
+  name: string
+  role: string
+}
+
+export interface AuthContext {
+  user: Ref<UserInfo | null>
+  login: (credentials: { email: string; password: string }) => Promise<void>
+  logout: () => Promise<void>
+}
+
+export const AuthSymbol: InjectionKey<AuthContext> = Symbol('auth')
+
+// composables/useAuth.ts
+import { provide, inject } from 'vue'
+import type { AuthContext } from '@/types/injection-keys'
+import { AuthSymbol } from '@/types/injection-keys'
+
+export function provideAuth() {
+  const user = ref<UserInfo | null>(null)
+  
+  const login = async (credentials: { email: string; password: string }) => {
+    // Implementación del login
+  }
+  
+  const logout = async () => {
+    // Implementación del logout
+  }
+  
+  const auth: AuthContext = {
+    user,
+    login,
+    logout
+  }
+  
+  provide(AuthSymbol, auth)
+}
+
+export function useAuth(): AuthContext {
+  const auth = inject(AuthSymbol)
+  
+  if (!auth) {
+    throw new Error('useAuth debe usarse dentro de un AuthProvider')
+  }
+  
+  return auth
+}
+```
+
+## Provide/Inject Reactivo
+
+```vue
+<!-- stores/useStore.ts -->
+<script setup lang="ts">
+import { reactive, provide } from 'vue'
+
+interface Store {
+  count: number
+  increment: () => void
+  decrement: () => void
+}
+
+const store = reactive<Store>({
+  count: 0,
+  increment() {
+    this.count++
+  },
+  decrement() {
+    this.count--
+  }
+})
+
+provide('store', store)
+</script>
+
+<!-- components/Counter.vue -->
+<script setup lang="ts">
+import { inject } from 'vue'
+import type { Store } from '@/stores/useStore'
+
+const store = inject<Store>('store')!
+</script>
+
+<template>
+  <div>
+    <p>Count: {{ store.count }}</p>
+    <button @click="store.increment">+</button>
+    <button @click="store.decrement">-</button>
+  </div>
+</template>
+```
+
+## Provide/Inject con Composables
+
+```ts
+// composables/useI18n.ts
+import { ref, provide, inject } from 'vue'
+
+interface I18nContext {
+  locale: Ref<string>
+  t: (key: string) => string
+  setLocale: (locale: string) => Promise<void>
+}
+
+const i18nSymbol = Symbol('i18n')
+
+export function provideI18n(defaultLocale = 'es') {
+  const locale = ref(defaultLocale)
+  const messages = ref<Record<string, Record<string, string>>>({})
+
+  const loadMessages = async (locale: string) => {
+    messages.value[locale] = await fetch(`/i18n/${locale}.json`)
+      .then(res => res.json())
+  }
+
+  const t = (key: string) => {
+    const localeMessages = messages.value[locale.value] || {}
+    return localeMessages[key] || key
+  }
+
+  const setLocale = async (newLocale: string) => {
+    if (!messages.value[newLocale]) {
+      await loadMessages(newLocale)
+    }
+    locale.value = newLocale
+  }
+
+  const i18n: I18nContext = {
+    locale,
+    t,
+    setLocale
+  }
+
+  provide(i18nSymbol, i18n)
+  
+  // Cargar mensajes del idioma por defecto
+  loadMessages(defaultLocale)
+}
+
+export function useI18n(): I18nContext {
+  const i18n = inject<I18nContext>(i18nSymbol)
+  
+  if (!i18n) {
+    throw new Error('useI18n debe usarse dentro de un I18nProvider')
+  }
+  
+  return i18n
+}
+```
+
+## Provide/Inject Múltiple
+
+```ts
+// providers/index.ts
+import { provide } from 'vue'
+
+interface Providers {
+  auth: AuthContext
+  theme: ThemeContext
+  i18n: I18nContext
+}
+
+export function provideAll() {
+  const providers: Providers = {
+    auth: provideAuth(),
+    theme: provideTheme(),
+    i18n: provideI18n()
+  }
+
+  provide('providers', providers)
+  
+  return providers
+}
+
+// composables/useProviders.ts
+export function useProviders() {
+  const providers = inject<Providers>('providers')
+  
+  if (!providers) {
+    throw new Error('useProviders debe usarse dentro de un proveedor')
+  }
+  
+  return providers
+}
+
+// App.vue
+<script setup>
+import { provideAll } from '@/providers'
+
+const providers = provideAll()
+</script>
+```
+
+## Provide/Inject con Validación
+
+```ts
+// composables/useValidatedInject.ts
+import { inject } from 'vue'
+
+export function useValidatedInject<T>(
+  key: InjectionKey<T> | string,
+  validator: (value: T) => boolean,
+  errorMessage?: string
+): T {
+  const value = inject<T>(key)
+  
+  if (!value) {
+    throw new Error(`No se encontró el valor para la key: ${key.toString()}`)
+  }
+  
+  if (!validator(value)) {
+    throw new Error(
+      errorMessage || `Valor inválido para la key: ${key.toString()}`
+    )
+  }
+  
+  return value
+}
+
+// Uso
+const theme = useValidatedInject(
+  ThemeSymbol,
+  (value): value is ThemeContext => {
+    return 'theme' in value && 'toggleTheme' in value
+  },
+  'El tema proporcionado no es válido'
+)
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa símbolos para las claves de inyección
+- Define tipos para los valores inyectados
+- Proporciona valores por defecto cuando sea apropiado
+- Maneja casos donde el valor no está disponible
+- Mantén el alcance lo más pequeño posible
+- Documenta las dependencias de inyección
+</Aside>
+
+## Patrones Avanzados
+
+1. **Provide/Inject con Composición**
+```ts
+function createProvider<T>(
+  key: InjectionKey<T>,
+  factory: () => T
+) {
+  return {
+    provide: () => provide(key, factory()),
+    use: () => {
+      const value = inject(key)
+      if (!value) throw new Error(`${key.toString()} no encontrado`)
+      return value
+    }
+  }
+}
+
+// Uso
+const counterProvider = createProvider(
+  CounterSymbol,
+  () => ({
+    count: ref(0),
+    increment: () => count.value++
+  })
+)
+
+// En componente raíz
+counterProvider.provide()
+
+// En cualquier componente hijo
+const counter = counterProvider.use()
+```
+
+2. **Provide/Inject con Estado Global**
+```ts
+// Crear un estado global
+const globalState = reactive({
+  user: null,
+  settings: {},
+  // ...
+})
+
+// Proveedor de estado
+provide('globalState', readonly(globalState))
+
+// Acciones para modificar el estado
+provide('globalActions', {
+  updateUser: (user) => {
+    globalState.user = user
+  },
+  updateSettings: (settings) => {
+    Object.assign(globalState.settings, settings)
+  }
+})
+```
+
+3. **Provide/Inject con Plugins**
+```ts
+// plugins/i18n.ts
+export default {
+  install: (app) => {
+    const i18n = createI18n()
+    app.provide('i18n', i18n)
+    app.config.globalProperties.$t = i18n.t
+  }
+}
+```

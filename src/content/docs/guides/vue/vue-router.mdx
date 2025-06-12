@@ -1,0 +1,355 @@
+---
+title: Vue Router en Vue 3
+description: Aprende a usar Vue Router para la navegación en aplicaciones Vue 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Configuración Básica
+
+```ts
+// router/index.ts
+import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
+
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/',
+    name: 'Home',
+    component: () => import('@/views/Home.vue')
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: () => import('@/views/About.vue')
+  },
+  {
+    path: '/users/:id',
+    name: 'UserProfile',
+    component: () => import('@/views/UserProfile.vue'),
+    props: true
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFound.vue')
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+export default router
+```
+
+## Navegación y Enlaces
+
+```vue
+<script setup lang="ts">
+import { useRouter, useRoute } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
+
+// Navegación programática
+const navigateToUser = (userId: string) => {
+  router.push({
+    name: 'UserProfile',
+    params: { id: userId }
+  })
+}
+
+// Acceder a parámetros de ruta
+const userId = route.params.id
+</script>
+
+<template>
+  <!-- Enlaces declarativos -->
+  <nav>
+    <router-link to="/" active-class="active">
+      Inicio
+    </router-link>
+    
+    <router-link 
+      :to="{ name: 'UserProfile', params: { id: '123' }}"
+      custom
+      v-slot="{ navigate, isActive }"
+    >
+      <button 
+        @click="navigate"
+        :class="{ active: isActive }"
+      >
+        Perfil
+      </button>
+    </router-link>
+  </nav>
+</template>
+```
+
+## Guardias de Navegación
+
+```ts
+// router/guards.ts
+import type { NavigationGuardWithThis } from 'vue-router'
+
+export const authGuard: NavigationGuardWithThis<undefined> = (to, from, next) => {
+  const isAuthenticated = localStorage.getItem('token')
+  
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next({
+      name: 'Login',
+      query: { redirect: to.fullPath }
+    })
+  } else {
+    next()
+  }
+}
+
+// router/index.ts
+router.beforeEach(authGuard)
+
+// Guardia por ruta
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('@/views/Admin.vue'),
+    meta: {
+      requiresAuth: true,
+      roles: ['admin']
+    },
+    beforeEnter: (to, from, next) => {
+      const userRole = localStorage.getItem('userRole')
+      if (to.meta.roles?.includes(userRole)) {
+        next()
+      } else {
+        next({ name: 'Home' })
+      }
+    }
+  }
+]
+```
+
+## Layouts y Rutas Anidadas
+
+```ts
+// router/index.ts
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/',
+    component: () => import('@/layouts/MainLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'Home',
+        component: () => import('@/views/Home.vue')
+      },
+      {
+        path: 'dashboard',
+        component: () => import('@/layouts/DashboardLayout.vue'),
+        children: [
+          {
+            path: '',
+            name: 'Dashboard',
+            component: () => import('@/views/Dashboard.vue')
+          },
+          {
+            path: 'settings',
+            name: 'Settings',
+            component: () => import('@/views/Settings.vue')
+          }
+        ]
+      }
+    ]
+  }
+]
+```
+
+## Composables para Router
+
+```ts
+// composables/useRouterUtils.ts
+import { useRouter, useRoute } from 'vue-router'
+import { computed } from 'vue'
+
+export function useRouterUtils() {
+  const router = useRouter()
+  const route = useRoute()
+
+  const queryParams = computed(() => route.query)
+  
+  const updateQuery = (params: Record<string, string>) => {
+    router.push({
+      query: {
+        ...route.query,
+        ...params
+      }
+    })
+  }
+
+  const goBack = () => router.back()
+  
+  const redirectToLogin = (redirect = route.fullPath) => {
+    router.push({
+      name: 'Login',
+      query: { redirect }
+    })
+  }
+
+  return {
+    queryParams,
+    updateQuery,
+    goBack,
+    redirectToLogin
+  }
+}
+
+// Uso en componente
+<script setup>
+import { useRouterUtils } from '@/composables/useRouterUtils'
+
+const { queryParams, updateQuery } = useRouterUtils()
+
+// Actualizar filtros en la URL
+const updateFilters = (filters: Record<string, string>) => {
+  updateQuery(filters)
+}
+</script>
+```
+
+## Transiciones de Ruta
+
+```vue
+<!-- App.vue -->
+<template>
+  <router-view v-slot="{ Component }">
+    <transition 
+      name="fade"
+      mode="out-in"
+      @before-enter="onBeforeEnter"
+      @after-leave="onAfterLeave"
+    >
+      <component :is="Component" />
+    </transition>
+  </router-view>
+</template>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
+```
+
+## Carga Perezosa y Prefetch
+
+```ts
+// router/index.ts
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views/Dashboard.vue'),
+    // Prefetch en hover
+    props: route => ({
+      id: route.params.id,
+      prefetch: true
+    })
+  }
+]
+
+// Componente con prefetch manual
+const prefetchUserProfile = async (id: string) => {
+  try {
+    // Prefetch componente
+    await router.getRouteComponent('UserProfile')
+    // Prefetch datos
+    await fetch(`/api/users/${id}`)
+  } catch (error) {
+    console.error('Prefetch failed:', error)
+  }
+}
+```
+
+## Scroll y Historial
+
+```ts
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+    
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: 'smooth'
+      }
+    }
+    
+    return { top: 0 }
+  }
+})
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa rutas con nombre para navegación
+- Implementa guardias de navegación
+- Organiza rutas por módulos
+- Usa layouts para estructura común
+- Maneja errores de navegación
+- Implementa carga perezosa
+</Aside>
+
+## Manejo de Errores
+
+```ts
+// router/index.ts
+router.onError((error, to, from) => {
+  console.error('Navigation error:', error)
+  
+  if (error.message.includes('Failed to fetch')) {
+    router.push({
+      name: 'Error',
+      params: { 
+        code: '503',
+        message: 'Service Unavailable'
+      }
+    })
+  }
+})
+
+// Componente de error
+<script setup lang="ts">
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const errorCode = route.params.code
+const errorMessage = route.params.message
+</script>
+
+<template>
+  <div class="error-page">
+    <h1>Error {{ errorCode }}</h1>
+    <p>{{ errorMessage }}</p>
+    <router-link to="/">
+      Volver al inicio
+    </router-link>
+  </div>
+</template>
+```

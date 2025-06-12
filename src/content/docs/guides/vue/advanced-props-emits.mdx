@@ -1,0 +1,404 @@
+---
+title: Props y Emits Avanzados en Vue 3
+description: Aprende patrones avanzados de props y emits en Vue 3 con la Composition API
+---
+
+Las props y emits son fundamentales en Vue 3 para la comunicación entre componentes. Con la Composition API y TypeScript, podemos crear interfaces robustas y type-safe para nuestros componentes.
+
+## ¿Por qué usar Props y Emits Avanzados?
+
+Al usar patrones avanzados de props y emits con la Composition API, obtenemos:
+
+- Type safety completo con TypeScript
+- Validación de props en tiempo de compilación
+- Mejor autocompletado en el IDE
+- Patrones de composición más flexibles
+- Manejo de estado más predecible
+
+<Aside type="tip">
+La combinación de TypeScript y Composition API nos permite crear APIs de componentes más seguras y mantenibles.
+</Aside>
+
+import { Code } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+## Props con TypeScript
+
+```ts
+// types/props.ts
+export interface BaseProps {
+  id?: string
+  class?: string
+  style?: string | Record<string, string>
+}
+
+export interface ButtonProps extends BaseProps {
+  variant?: 'primary' | 'secondary' | 'danger'
+  size?: 'sm' | 'md' | 'lg'
+  disabled?: boolean
+  loading?: boolean
+  icon?: string
+}
+
+// Button.vue
+<script setup lang="ts">
+import type { ButtonProps } from '@/types/props'
+
+const props = withDefaults(defineProps<ButtonProps>(), {
+  variant: 'primary',
+  size: 'md',
+  disabled: false,
+  loading: false
+})
+</script>
+
+<template>
+  <button
+    :class="[
+      `btn-${variant}`,
+      `btn-${size}`,
+      { disabled, loading }
+    ]"
+    v-bind="$attrs"
+  >
+    <i v-if="icon" :class="icon" />
+    <slot />
+  </button>
+</template>
+```
+
+## Props Validación Avanzada
+
+```ts
+// composables/usePropsValidation.ts
+import { onMounted, getCurrentInstance } from 'vue'
+
+export function usePropsValidation() {
+  const validateProps = (rules: Record<string, (value: any) => boolean>) => {
+    const instance = getCurrentInstance()
+    if (!instance) return
+
+    const { props } = instance
+    
+    onMounted(() => {
+      Object.entries(rules).forEach(([prop, validator]) => {
+        if (prop in props && !validator(props[prop])) {
+          console.warn(
+            `Invalid prop: ${prop} in component ${instance.type.__name}`
+          )
+        }
+      })
+    })
+  }
+
+  return {
+    validateProps
+  }
+}
+
+// Uso
+<script setup lang="ts">
+import { usePropsValidation } from '@/composables/usePropsValidation'
+
+interface Props {
+  min: number
+  max: number
+  value: number
+}
+
+const props = defineProps<Props>()
+const { validateProps } = usePropsValidation()
+
+validateProps({
+  min: (value) => typeof value === 'number' && value >= 0,
+  max: (value) => typeof value === 'number' && value > props.min,
+  value: (value) => value >= props.min && value <= props.max
+})
+</script>
+```
+
+## Props Computadas
+
+```vue
+<script setup lang="ts">
+interface Props {
+  items: any[]
+  sortKey?: string
+  filterFn?: (item: any) => boolean
+  groupBy?: string
+}
+
+const props = defineProps<Props>()
+
+// Ordenamiento
+const sortedItems = computed(() => {
+  if (!props.sortKey) return props.items
+  
+  return [...props.items].sort((a, b) => {
+    const aValue = get(a, props.sortKey!)
+    const bValue = get(b, props.sortKey!)
+    return aValue > bValue ? 1 : -1
+  })
+})
+
+// Filtrado
+const filteredItems = computed(() => {
+  if (!props.filterFn) return sortedItems.value
+  return sortedItems.value.filter(props.filterFn)
+})
+
+// Agrupamiento
+const groupedItems = computed(() => {
+  if (!props.groupBy) return { default: filteredItems.value }
+  
+  return filteredItems.value.reduce((groups, item) => {
+    const key = get(item, props.groupBy!)
+    if (!groups[key]) groups[key] = []
+    groups[key].push(item)
+    return groups
+  }, {} as Record<string, any[]>)
+})
+</script>
+
+<template>
+  <div>
+    <template v-if="props.groupBy">
+      <div
+        v-for="(items, group) in groupedItems"
+        :key="group"
+      >
+        <h3>{{ group }}</h3>
+        <slot
+          name="group"
+          :items="items"
+          :group="group"
+        />
+      </div>
+    </template>
+    
+    <template v-else>
+      <slot :items="filteredItems" />
+    </template>
+  </div>
+</template>
+```
+
+## Emits Tipados
+
+```ts
+// types/emits.ts
+export interface FormEvents {
+  (e: 'submit', data: Record<string, any>): void
+  (e: 'validate', field: string, valid: boolean): void
+  (e: 'error', errors: Record<string, string>): void
+}
+
+// Form.vue
+<script setup lang="ts">
+import type { FormEvents } from '@/types/emits'
+
+const emit = defineEmits<FormEvents>()
+
+const validate = (field: string, value: any) => {
+  const valid = validateField(field, value)
+  emit('validate', field, valid)
+  return valid
+}
+
+const handleSubmit = async (e: Event) => {
+  e.preventDefault()
+  
+  const errors = validateForm()
+  if (Object.keys(errors).length) {
+    emit('error', errors)
+    return
+  }
+  
+  emit('submit', formData)
+}
+</script>
+```
+
+## Props y Emits Reactivos
+
+```vue
+<script setup lang="ts">
+interface Props {
+  modelValue: string[]
+  max?: number
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string[]): void
+  (e: 'exceed', count: number): void
+}>()
+
+// Prop reactivo con watcher
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    if (props.max && newValue.length > props.max) {
+      emit('exceed', newValue.length)
+      emit('update:modelValue', newValue.slice(0, props.max))
+    }
+  }
+)
+
+// Computed con emit
+const selectedItems = computed({
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value)
+})
+</script>
+```
+
+## v-model Personalizado
+
+```vue
+<!-- CustomInput.vue -->
+<script setup lang="ts">
+interface Props {
+  modelValue: string
+  modelModifiers?: {
+    capitalize?: boolean
+    trim?: boolean
+  }
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  modelModifiers: () => ({})
+})
+
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string): void
+}>()
+
+const handleInput = (event: Event) => {
+  let value = (event.target as HTMLInputElement).value
+  
+  if (props.modelModifiers?.trim) {
+    value = value.trim()
+  }
+  
+  if (props.modelModifiers?.capitalize) {
+    value = value.charAt(0).toUpperCase() + value.slice(1)
+  }
+  
+  emit('update:modelValue', value)
+}
+</script>
+
+<template>
+  <input
+    :value="modelValue"
+    @input="handleInput"
+  />
+</template>
+
+<!-- Uso -->
+<template>
+  <CustomInput
+    v-model.trim.capitalize="text"
+  />
+</template>
+```
+
+## Props por Referencia vs Valor
+
+```vue
+<script setup lang="ts">
+import { toRef, toRefs } from 'vue'
+
+interface Props {
+  user: {
+    id: number
+    name: string
+    settings: Record<string, any>
+  }
+}
+
+const props = defineProps<Props>()
+
+// Referencia individual
+const userName = toRef(props, 'user.name')
+
+// Múltiples referencias
+const { id, settings } = toRefs(props.user)
+
+// Clonar para mutación local
+const localSettings = ref({ ...props.user.settings })
+
+// Sincronizar cambios
+watch(
+  () => props.user.settings,
+  (newSettings) => {
+    Object.assign(localSettings.value, newSettings)
+  }
+)
+</script>
+```
+
+## Mejores Prácticas
+
+<Aside type="tip" label="Recomendaciones">
+- Usa TypeScript para props y emits
+- Valida props complejas
+- Implementa v-model personalizado
+- Maneja props por referencia con cuidado
+- Documenta la API del componente
+- Usa computed para props derivadas
+</Aside>
+
+## Patrones Avanzados
+
+1. **Props Fallthrough**
+```vue
+<template>
+  <div
+    class="wrapper"
+    v-bind="$attrs"
+  >
+    <slot />
+  </div>
+</template>
+
+<script>
+// Deshabilitar herencia automática
+defineOptions({
+  inheritAttrs: false
+})
+</script>
+```
+
+2. **Props Dinámicas**
+```vue
+<script setup>
+const props = defineProps({
+  [dynamicPropName]: {
+    type: String,
+    required: true
+  }
+})
+</script>
+```
+
+3. **Emits con Promesas**
+```ts
+const emit = defineEmits<{
+  (e: 'save', data: any): Promise<boolean>
+}>()
+
+const save = async () => {
+  try {
+    const success = await emit('save', formData)
+    if (success) {
+      // Continuar
+    }
+  } catch (error) {
+    // Manejar error
+  }
+}
+```
